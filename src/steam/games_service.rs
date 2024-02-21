@@ -1,13 +1,22 @@
 use super::client;
+use futures::future::join_all;
 use std::collections::HashSet;
 
 use super::models::Game;
 
-pub fn find_games_in_common(steam_ids: Vec<&u64>) -> Result<HashSet<Game>, Error> {
+pub async fn find_games_in_common(steam_ids: Vec<&u64>) -> Result<HashSet<Game>, Error> {
     let mut games_set = HashSet::<Game>::new();
+
+    let query_results = join_all(
+        steam_ids
+            .into_iter()
+            .map(|id| client::get_owned_games(client::GetOwnedGamesRequest { id: *id })),
+    )
+    .await;
+
     let mut first = true;
-    for id in steam_ids {
-        let games = client::get_owned_games(client::GetOwnedGamesRequest { id: *id })?;
+    for result in query_results {
+        let games = result?;
         if first {
             for game in games {
                 games_set.insert(game);

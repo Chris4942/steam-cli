@@ -13,53 +13,44 @@ pub struct GetOwnedGamesRequest {
     pub id: u64,
 }
 
-pub fn get_owned_games(request: GetOwnedGamesRequest) -> Result<Vec<Game>, Error> {
-    let future = async {
-        println!("running get_owned_games_async for {:?}", request);
+pub async fn get_owned_games(request: GetOwnedGamesRequest) -> Result<Vec<Game>, Error> {
+    println!("running get_owned_games_async for {:?}", request);
 
-        let url = format!(
-            "{base}/IPlayerService/GetOwnedGames/v0001/",
-            base = BASE_URL
-        );
+    let url = format!(
+        "{base}/IPlayerService/GetOwnedGames/v0001/",
+        base = BASE_URL
+    );
 
-        let params = [
-            (
-                "key",
-                env::var("STEAM_API_KEY").expect("STEAM_API_KEY not set"),
-            ),
-            ("steamId", request.id.to_string()),
-            ("format", "json".to_string()),
-            ("include_appinfo", "true".to_string()),
-            ("include_played_free_games", "false".to_string()),
-            ("appids_filter", "false".to_string()),
-            ("language", "EN".to_string()),
-            ("inclde_extended_app_info", "false".to_string()),
-        ];
+    let params = [
+        (
+            "key",
+            env::var("STEAM_API_KEY").expect("STEAM_API_KEY not set"),
+        ),
+        ("steamId", request.id.to_string()),
+        ("format", "json".to_string()),
+        ("include_appinfo", "true".to_string()),
+        ("include_played_free_games", "false".to_string()),
+        ("appids_filter", "false".to_string()),
+        ("language", "EN".to_string()),
+        ("inclde_extended_app_info", "false".to_string()),
+    ];
 
-        let client = Client::new();
+    let client = Client::new();
 
-        let response = client.get(url).query(&params).send().await?;
+    let response = client.get(url).query(&params).send().await?;
 
-        if response.status().is_success() {
-            let body = response.text().await.expect("failed to parse body");
-            let parse_body: serde_json::Value = serde_json::from_str(&body)?;
-            if let Some(games_array) = parse_body["response"]["games"].as_array() {
-                return Ok(serde_json::from_value(serde_json::Value::Array(
-                    games_array.to_owned(),
-                ))?);
-            }
-            return Err(Error::JsonMissingValueError);
+    if response.status().is_success() {
+        let body = response.text().await.expect("failed to parse body");
+        let parse_body: serde_json::Value = serde_json::from_str(&body)?;
+        if let Some(games_array) = parse_body["response"]["games"].as_array() {
+            return Ok(serde_json::from_value(serde_json::Value::Array(
+                games_array.to_owned(),
+            ))?);
         }
-        println!("failed with status code: {}", response.status());
-        return Err(Error::HttpStatusError(response.status().as_u16()));
-    };
-
-    let rt = runtime::Builder::new_current_thread()
-        .enable_io()
-        .enable_time()
-        .build()
-        .expect("The tokio implemented is borked");
-    rt.block_on(future)
+        return Err(Error::JsonMissingValueError);
+    }
+    println!("failed with status code: {}", response.status());
+    return Err(Error::HttpStatusError(response.status().as_u16()));
 }
 
 #[derive(Serialize, Deserialize)]

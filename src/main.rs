@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use clap::{command, value_parser, Arg, Command};
 mod steam;
 use steam::{games_service, models::Game};
+use tokio::runtime;
 
 fn main() {
     let matches = command!()
@@ -28,7 +29,12 @@ fn main() {
                 .into_iter()
                 .flatten()
                 .collect::<Vec<_>>();
-            match games_service::find_games_in_common(steam_ids) {
+            let rt = runtime::Builder::new_current_thread()
+                .enable_io()
+                .enable_time()
+                .build()
+                .expect("tokio is borked");
+            match rt.block_on(games_service::find_games_in_common(steam_ids)) {
                 Ok(games_in_common) => {
                     println!("{}", compute_sorted_games_string(&games_in_common));
                 }
