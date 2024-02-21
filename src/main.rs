@@ -9,13 +9,15 @@ fn main() {
     let matches = command!()
         .version("0.0")
         .author("Chris West")
-        .about("Some utility functions for use with steam")
+        .about("Some utility functions to run against steam")
         .arg_required_else_help(true)
         .subcommand(
             Command::new("games-in-common")
+                .about("find the intersection of games owned by provided steam accounts")
                 .alias("gic")
                 .arg(
                     Arg::new("steam_ids")
+                        .help("id(s) assoicated with steam account(s), e.g., for accounts 42 and 7: steam-cli gic 7 42")
                         .num_args(1..)
                         .value_parser(value_parser!(u64)),
                 )
