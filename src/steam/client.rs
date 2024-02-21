@@ -5,8 +5,6 @@ use serde::{Deserialize, Serialize};
 
 use super::models::Game;
 
-
-
 const BASE_URL: &str = "http://api.steampowered.com";
 #[derive(Debug)]
 pub struct GetOwnedGamesRequest {
