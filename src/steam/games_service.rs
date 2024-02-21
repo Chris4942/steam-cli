@@ -7,7 +7,7 @@ pub fn find_games_in_common(steam_ids: Vec<&u64>) -> Result<HashSet<Game>, Error
     let mut games_set = HashSet::<Game>::new();
     let mut first = true;
     for id in steam_ids {
-        let games = client::get_owned_games(client::GetOwnedGamesRequest { id: id.to_string() })?;
+        let games = client::get_owned_games(client::GetOwnedGamesRequest { id: *id })?;
         if first {
             for game in games {
                 games_set.insert(game);

@@ -10,7 +10,7 @@ use tokio::runtime;
 const BASE_URL: &str = "http://api.steampowered.com";
 #[derive(Debug)]
 pub struct GetOwnedGamesRequest {
-    pub id: String,
+    pub id: u64,
 }
 
 pub fn get_owned_games(request: GetOwnedGamesRequest) -> Result<Vec<Game>, Error> {
