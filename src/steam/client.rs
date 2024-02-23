@@ -48,7 +48,7 @@ pub async fn get_owned_games(request: GetOwnedGamesRequest) -> Result<Vec<Game>,
         return Err(Error::JsonMissingValueError);
     }
     println!("failed with status code: {}", response.status());
-    return Err(Error::HttpStatusError(response.status().as_u16()));
+    Err(Error::HttpStatusError(response.status().as_u16()))
 }
 
 #[derive(Serialize, Deserialize)]
