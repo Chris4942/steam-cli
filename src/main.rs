@@ -94,7 +94,7 @@ fn get_blocking_runtime() -> runtime::Runtime {
 fn compute_sorted_games_string(games: &HashSet<Game>) -> String {
     let mut games: Vec<&Game> = games.iter().collect();
     games.sort_by(|a, b| a.name.cmp(&b.name));
-    return format!(
+    format!(
         "{games}\n\tTotal: {total}\n",
         games = games
             .iter()
@@ -102,5 +102,5 @@ fn compute_sorted_games_string(games: &HashSet<Game>) -> String {
             .collect::<Vec<String>>()
             .join("\n"),
         total = games.len()
-    );
+    )
 }
