@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use clap::{command, value_parser, Arg, Command};
 mod steam;
-use steam::{client::GetUserFriendsListRequest, games_service, models::Game};
+use steam::{client::GetUserDetailsRequest, games_service, models::Game};
 use tokio::runtime;
 
 fn main() {
@@ -48,6 +48,15 @@ fn main() {
             Command::new("get-user-friends-list")
             .alias("friends")
             .about("get the friends list of the user")
+            .arg(
+                Arg::new("steamid")
+                .help("id associated with the steam account")
+                .num_args(1)
+                .value_parser(value_parser!(u64))
+            )
+        )
+        .subcommand(
+            Command::new("get-player-summary")
             .arg(
                 Arg::new("steamid")
                 .help("id associated with the steam account")
@@ -108,8 +117,27 @@ fn main() {
         Some(("get-user-friends-list", arguments)) => {
             let steamid = arguments.get_one::<u64>("steamid").expect("1 arg required");
             match get_blocking_runtime().block_on(steam::client::get_user_friends_list(
-                GetUserFriendsListRequest {
-                    user: steamid.to_owned(),
+                GetUserDetailsRequest {
+                    id: steamid.to_owned(),
+                },
+            )) {
+                Ok(friends_list) => {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&friends_list)
+                            .expect("failed to unwrap values")
+                    )
+                }
+                Err(err) => {
+                    eprintln!("failed due to: {err:?}");
+                }
+            }
+        }
+        Some(("get-player-summary", arguments)) => {
+            let steamid = arguments.get_one::<u64>("steamid").expect("1 arg required");
+            match get_blocking_runtime().block_on(steam::client::get_user_summary(
+                GetUserDetailsRequest {
+                    id: steamid.to_owned(),
                 },
             )) {
                 Ok(friends_list) => {

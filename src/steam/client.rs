@@ -6,12 +6,8 @@ use serde::{Deserialize, Serialize};
 use super::models::Game;
 
 const BASE_URL: &str = "http://api.steampowered.com";
-#[derive(Debug)]
-pub struct GetOwnedGamesRequest {
-    pub id: u64,
-}
 
-pub async fn get_owned_games(request: GetOwnedGamesRequest) -> Result<Vec<Game>, Error> {
+pub async fn get_owned_games(request: GetUserDetailsRequest) -> Result<Vec<Game>, Error> {
     eprintln!("running get_owned_games_async for {:?}", request);
 
     let url = format!(
@@ -78,9 +74,9 @@ pub async fn get_available_endpoints() -> Result<GetAvailableEndpointsResponse, 
 }
 
 pub async fn get_user_friends_list(
-    request: GetUserFriendsListRequest,
+    request: GetUserDetailsRequest,
 ) -> Result<serde_json::Value, Error> {
-    let user = request.user;
+    let user = request.id;
     eprintln!("getting user friends for user: {user}");
 
     let params = [
@@ -102,10 +98,41 @@ pub async fn get_user_friends_list(
         return Ok(parse_body);
     }
 
-    Err(Error::HttpStatusError(500))
+    Err(Error::HttpStatusError(response.status().into()))
 }
-pub struct GetUserFriendsListRequest {
-    pub user: u64,
+
+pub async fn get_user_summary(request: GetUserDetailsRequest) -> Result<serde_json::Value, Error> {
+    let user = request.id;
+    eprintln!("getting player summary for user: {user}");
+
+    let params = [
+        (
+            "key",
+            env::var("STEAM_API_KEY").expect("STEAM_API_KEY not set"),
+        ),
+        ("steamids", user.to_string()),
+    ];
+
+    let url = format!(
+        "{base}/ISteamUser/GetPlayerSummaries/v0002/",
+        base = BASE_URL
+    );
+
+    let client = reqwest::Client::new();
+    let response = client.get(url).query(&params).send().await?;
+
+    if response.status().is_success() {
+        let body = response.text().await.expect("failed to parse body");
+        let parse_body: serde_json::Value = serde_json::from_str(&body)?;
+        return Ok(parse_body);
+    }
+
+    Err(Error::HttpStatusError(response.status().into()))
+}
+
+#[derive(Debug)]
+pub struct GetUserDetailsRequest {
+    pub id: u64,
 }
 
 #[derive(Serialize, Deserialize)]
