@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use clap::{command, value_parser, Arg, Command};
 mod steam;
-use steam::{games_service, models::Game};
+use steam::{client::GetUserFriendsListRequest, games_service, models::Game};
 use tokio::runtime;
 
 fn main() {
@@ -44,6 +44,17 @@ fn main() {
             Command::new("get-available-endpoints")
             .about("print out all of the available endpoints. You'll probably want to pipe these into another file that you can search through")
         )
+        .subcommand(
+            Command::new("get-user-friends-list")
+            .alias("friends")
+            .about("get the friends list of the user")
+            .arg(
+                Arg::new("steamid")
+                .help("id associated with the steam account")
+                .num_args(1)
+                .value_parser(value_parser!(u64))
+            )
+        )
         .get_matches();
     match matches.subcommand() {
         Some(("games-in-common", arguments)) => {
@@ -83,7 +94,30 @@ fn main() {
         Some(("get-available-endpoints", _)) => {
             match get_blocking_runtime().block_on(steam::client::get_available_endpoints()) {
                 Ok(available_endpoints) => {
-                    println!("{}", serde_json::to_string_pretty(&available_endpoints).expect("failed to unwrap values"));
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&available_endpoints)
+                            .expect("failed to unwrap values")
+                    );
+                }
+                Err(err) => {
+                    eprintln!("failed due to: {err:?}");
+                }
+            }
+        }
+        Some(("get-user-friends-list", arguments)) => {
+            let steamid = arguments.get_one::<u64>("steamid").expect("1 arg required");
+            match get_blocking_runtime().block_on(steam::client::get_user_friends_list(
+                GetUserFriendsListRequest {
+                    user: steamid.to_owned(),
+                },
+            )) {
+                Ok(friends_list) => {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&friends_list)
+                            .expect("failed to unwrap values")
+                    )
                 }
                 Err(err) => {
                     eprintln!("failed due to: {err:?}");

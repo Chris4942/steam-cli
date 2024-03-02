@@ -54,14 +54,15 @@ pub async fn get_owned_games(request: GetOwnedGamesRequest) -> Result<Vec<Game>,
 pub async fn get_available_endpoints() -> Result<GetAvailableEndpointsResponse, Error> {
     eprintln!("getting available endoints...");
 
-    let params = [
-        (
-            "key",
-            env::var("STEAM_API_KEY").expect("STEAM_API_KEY not set"),
-        ),
-    ];
+    let params = [(
+        "key",
+        env::var("STEAM_API_KEY").expect("STEAM_API_KEY not set"),
+    )];
 
-    let url = format!("{base}/ISteamWebAPIUtil/GetSupportedAPIList/v0001/", base = BASE_URL);
+    let url = format!(
+        "{base}/ISteamWebAPIUtil/GetSupportedAPIList/v0001/",
+        base = BASE_URL
+    );
 
     let client = reqwest::Client::new();
 
@@ -74,6 +75,37 @@ pub async fn get_available_endpoints() -> Result<GetAvailableEndpointsResponse, 
     }
 
     Err(Error::HttpStatusError(response.status().as_u16()))
+}
+
+pub async fn get_user_friends_list(
+    request: GetUserFriendsListRequest,
+) -> Result<serde_json::Value, Error> {
+    let user = request.user;
+    eprintln!("getting user friends for user: {user}");
+
+    let params = [
+        (
+            "key",
+            env::var("STEAM_API_KEY").expect("STEAM_API_KEY not set"),
+        ),
+        ("steamid", user.to_string()),
+    ];
+
+    let url = format!("{base}/ISteamUser/GetFriendList/v0001/", base = BASE_URL);
+
+    let client = reqwest::Client::new();
+    let response = client.get(url).query(&params).send().await?;
+
+    if response.status().is_success() {
+        let body = response.text().await.expect("failed to parse body");
+        let parse_body: serde_json::Value = serde_json::from_str(&body)?;
+        return Ok(parse_body);
+    }
+
+    Err(Error::HttpStatusError(500))
+}
+pub struct GetUserFriendsListRequest {
+    pub user: u64,
 }
 
 #[derive(Serialize, Deserialize)]
