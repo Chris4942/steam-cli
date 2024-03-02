@@ -1,16 +1,16 @@
 use super::client;
 use futures::{future::join_all, join};
-use std::collections::HashSet;
+use std::{collections::HashSet, env};
 
 use super::models::Game;
 
-pub async fn find_games_in_common(steam_ids: Vec<&u64>) -> Result<HashSet<Game>, Error> {
+pub async fn find_games_in_common(steam_ids: Vec<u64>) -> Result<HashSet<Game>, Error> {
     let mut games_set = HashSet::<Game>::new();
 
     let query_results = join_all(
         steam_ids
             .into_iter()
-            .map(|id| client::get_owned_games(client::GetUserDetailsRequest { id: *id })),
+            .map(|id| client::get_owned_games(client::GetUserDetailsRequest { id })),
     )
     .await;
 
@@ -32,7 +32,7 @@ pub async fn find_games_in_common(steam_ids: Vec<&u64>) -> Result<HashSet<Game>,
 
 pub async fn games_missing_from_group(
     focus_steam_id: &u64,
-    other_steam_ids: Vec<&u64>,
+    other_steam_ids: Vec<u64>,
 ) -> Result<HashSet<Game>, Error> {
     println!("finding games missing from group");
     let result = join!(
@@ -47,6 +47,39 @@ pub async fn games_missing_from_group(
         games_in_common_minus_focus.remove(&game);
     }
     Ok(games_in_common_minus_focus)
+}
+
+pub async fn resolve_usernames<'a>(usernames: Vec<String>) -> Result<Vec<u64>, Error> {
+    let id = env::var("USER_STEAM_ID")
+        .expect("env var USER_STEAM_ID must be set in order to resolve usernames directly")
+        .parse::<u64>()
+        .expect("USER_STEAM_ID needs to be a valid u64");
+    let friends = client::get_user_friends_list(client::GetUserDetailsRequest { id: id }).await?;
+    println!("got friends");
+    let ids: Vec<u64> = friends
+        .iter()
+        .map(|friend| {
+            friend
+                .steamid
+                .parse::<u64>()
+                .expect("The Steam api returned bad data")
+        })
+        .collect();
+    let user_summaries =
+        client::get_user_summaries(client::GetUserSummariesRequest { ids }).await?;
+    let steamids = usernames
+        .iter()
+        .map(|username| {
+            user_summaries
+                .iter()
+                .find(|user| user.personaname == *username)
+                .expect("supplied user was not in list")
+                .steamid
+                .parse::<u64>()
+                .expect("logic error occured in steamapi or I had bad assumptions")
+        })
+        .collect::<Vec<_>>();
+    return Ok(steamids);
 }
 
 #[derive(Debug)]

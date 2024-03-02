@@ -1,4 +1,4 @@
-use std::env;
+use std::{borrow::Borrow, env};
 
 use reqwest;
 use serde::{Deserialize, Serialize};
@@ -43,7 +43,6 @@ pub async fn get_owned_games(request: GetUserDetailsRequest) -> Result<Vec<Game>
         }
         return Err(Error::JsonMissingValueError);
     }
-    println!("failed with status code: {}", response.status());
     Err(Error::HttpStatusError(response.status().as_u16()))
 }
 
@@ -73,9 +72,12 @@ pub async fn get_available_endpoints() -> Result<GetAvailableEndpointsResponse, 
     Err(Error::HttpStatusError(response.status().as_u16()))
 }
 
-pub async fn get_user_friends_list(
-    request: GetUserDetailsRequest,
-) -> Result<serde_json::Value, Error> {
+#[derive(Serialize, Deserialize)]
+pub struct GetAvailableEndpointsResponse {
+    pub apilist: ApiList,
+}
+
+pub async fn get_user_friends_list(request: GetUserDetailsRequest) -> Result<Vec<Friend>, Error> {
     let user = request.id;
     eprintln!("getting user friends for user: {user}");
 
@@ -95,22 +97,39 @@ pub async fn get_user_friends_list(
     if response.status().is_success() {
         let body = response.text().await.expect("failed to parse body");
         let parse_body: serde_json::Value = serde_json::from_str(&body)?;
-        return Ok(parse_body);
+        if let Some(friends) = parse_body["friendslist"]["friends"].as_array() {
+            return Ok(serde_json::from_value(serde_json::Value::Array(
+                friends.to_owned(),
+            ))?);
+        }
+        return Err(Error::JsonMissingValueError);
     }
 
     Err(Error::HttpStatusError(response.status().into()))
 }
 
-pub async fn get_user_summary(request: GetUserDetailsRequest) -> Result<serde_json::Value, Error> {
-    let user = request.id;
-    eprintln!("getting player summary for user: {user}");
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Friend {
+    pub steamid: String,
+}
+
+pub async fn get_user_summaries(
+    request: GetUserSummariesRequest,
+) -> Result<Vec<UserSummary>, Error> {
+    let users = request.ids;
+    eprintln!("getting player summary for users: {:?}", users);
 
     let params = [
         (
             "key",
             env::var("STEAM_API_KEY").expect("STEAM_API_KEY not set"),
         ),
-        ("steamids", user.to_string()),
+        (
+            "steamids",
+            users.iter().fold(String::new(), |aggregate, id| {
+                aggregate + "," + id.to_string().borrow()
+            }),
+        ),
     ];
 
     let url = format!(
@@ -124,20 +143,31 @@ pub async fn get_user_summary(request: GetUserDetailsRequest) -> Result<serde_js
     if response.status().is_success() {
         let body = response.text().await.expect("failed to parse body");
         let parse_body: serde_json::Value = serde_json::from_str(&body)?;
-        return Ok(parse_body);
+        if let Some(players) = parse_body["response"]["players"].as_array() {
+            return Ok(serde_json::from_value(serde_json::Value::Array(
+                players.to_owned(),
+            ))?);
+        }
+        return Err(Error::JsonMissingValueError);
     }
 
     Err(Error::HttpStatusError(response.status().into()))
 }
 
 #[derive(Debug)]
-pub struct GetUserDetailsRequest {
-    pub id: u64,
+pub struct GetUserSummariesRequest {
+    pub ids: Vec<u64>,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct GetAvailableEndpointsResponse {
-    pub apilist: ApiList,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserSummary {
+    pub steamid: String,
+    pub personaname: String,
+}
+
+#[derive(Debug)]
+pub struct GetUserDetailsRequest {
+    pub id: u64,
 }
 
 #[derive(Serialize, Deserialize)]

@@ -2,7 +2,11 @@ use std::collections::HashSet;
 
 use clap::{command, value_parser, Arg, Command};
 mod steam;
-use steam::{client::GetUserDetailsRequest, games_service, models::Game};
+use steam::{
+    client::{GetUserDetailsRequest, GetUserSummariesRequest},
+    games_service,
+    models::Game,
+};
 use tokio::runtime;
 
 fn main() {
@@ -16,10 +20,15 @@ fn main() {
                 .about("find the intersection of games owned by provided steam accounts")
                 .alias("gic")
                 .arg(
+                    Arg::new("by-name")
+                        .long("by-name")
+                        .action(clap::ArgAction::SetTrue)
+                )
+                .arg(
                     Arg::new("steam_ids")
                         .help("id(s) assoicated with steam account(s), e.g., for accounts 42 and 7: steam-cli gic 7 42")
                         .num_args(1..)
-                        .value_parser(value_parser!(u64)),
+                        .value_parser(value_parser!(String)),
                 )
                 .arg_required_else_help(true),
         )
@@ -36,7 +45,7 @@ fn main() {
                 Arg::new("steam_ids")
                     .help("id(s) assoicated with steam account(s), e.g., for accounts 42 and 7: steam-cli gic 7 42")
                     .num_args(1..)
-                    .value_parser(value_parser!(u64)),
+                    .value_parser(value_parser!(String)),
             )
             .arg_required_else_help(true)
         )
@@ -60,19 +69,36 @@ fn main() {
             .arg(
                 Arg::new("steamid")
                 .help("id associated with the steam account")
-                .num_args(1)
+                .num_args(1..)
                 .value_parser(value_parser!(u64))
             )
         )
         .get_matches();
     match matches.subcommand() {
         Some(("games-in-common", arguments)) => {
-            let steam_ids = arguments
-                .get_many::<u64>("steam_ids")
+            let rt = get_blocking_runtime();
+
+            let partially_ingested_steam_ids = arguments
+                .get_many::<String>("steam_ids")
                 .into_iter()
-                .flatten()
-                .collect::<Vec<_>>();
-            match get_blocking_runtime().block_on(games_service::find_games_in_common(steam_ids)) {
+                .flatten();
+            let steam_ids = if arguments.get_flag("by-name") {
+                let steam_id_strings = partially_ingested_steam_ids
+                    .map(|s| s.to_owned())
+                    .collect::<Vec<_>>();
+                rt.block_on(games_service::resolve_usernames(steam_id_strings))
+                    .expect("if this fails then we need to add some logic here to handle it")
+            } else {
+                partially_ingested_steam_ids
+                    .map(|id| id.parse::<u64>().expect("ids should be valid steam ids"))
+                    .collect::<Vec<_>>()
+            };
+
+            let by_name_flag = arguments.get_flag("by-name");
+
+            eprintln!("by name flag: {by_name_flag}");
+
+            match rt.block_on(games_service::find_games_in_common(steam_ids)) {
                 Ok(games_in_common) => {
                     println!("{}", compute_sorted_games_string(&games_in_common));
                 }
@@ -86,9 +112,10 @@ fn main() {
                 .get_one::<u64>("focus_steam_id")
                 .expect("1 arg required");
             let steam_ids = arguments
-                .get_many::<u64>("steam_ids")
+                .get_many::<String>("steam_ids")
                 .into_iter()
                 .flatten()
+                .map(|id| id.parse::<u64>().expect("ids should be valid steam ids"))
                 .collect::<Vec<_>>();
             match get_blocking_runtime().block_on(games_service::games_missing_from_group(
                 focus_steam_id,
@@ -134,11 +161,14 @@ fn main() {
             }
         }
         Some(("get-player-summary", arguments)) => {
-            let steamid = arguments.get_one::<u64>("steamid").expect("1 arg required");
-            match get_blocking_runtime().block_on(steam::client::get_user_summary(
-                GetUserDetailsRequest {
-                    id: steamid.to_owned(),
-                },
+            let steamids = arguments
+                .get_many::<u64>("steamid")
+                .into_iter()
+                .flatten()
+                .map(|i| i.to_owned())
+                .collect::<Vec<_>>();
+            match get_blocking_runtime().block_on(steam::client::get_user_summaries(
+                GetUserSummariesRequest { ids: steamids },
             )) {
                 Ok(friends_list) => {
                     println!(
