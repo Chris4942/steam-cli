@@ -40,6 +40,10 @@ fn main() {
             )
             .arg_required_else_help(true)
         )
+        .subcommand(
+            Command::new("get-available-endpoints")
+            .about("print out all of the available endpoints. You'll probably want to pipe these into another file that you can search through")
+        )
         .get_matches();
     match matches.subcommand() {
         Some(("games-in-common", arguments)) => {
@@ -72,7 +76,17 @@ fn main() {
             )) {
                 Ok(games) => println!("{}", compute_sorted_games_string(&games)),
                 Err(err) => {
-                    println!("failed due to: {err:?}");
+                    eprintln!("failed due to: {err:?}");
+                }
+            }
+        }
+        Some(("get-available-endpoints", _)) => {
+            match get_blocking_runtime().block_on(steam::client::get_available_endpoints()) {
+                Ok(available_endpoints) => {
+                    println!("{}", serde_json::to_string_pretty(&available_endpoints).expect("failed to unwrap values"));
+                }
+                Err(err) => {
+                    eprintln!("failed due to: {err:?}");
                 }
             }
         }

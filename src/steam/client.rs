@@ -1,6 +1,6 @@
 use std::env;
 
-use reqwest::Client;
+use reqwest;
 use serde::{Deserialize, Serialize};
 
 use super::models::Game;
@@ -12,7 +12,7 @@ pub struct GetOwnedGamesRequest {
 }
 
 pub async fn get_owned_games(request: GetOwnedGamesRequest) -> Result<Vec<Game>, Error> {
-    println!("running get_owned_games_async for {:?}", request);
+    eprintln!("running get_owned_games_async for {:?}", request);
 
     let url = format!(
         "{base}/IPlayerService/GetOwnedGames/v0001/",
@@ -33,7 +33,7 @@ pub async fn get_owned_games(request: GetOwnedGamesRequest) -> Result<Vec<Game>,
         ("inclde_extended_app_info", "false".to_string()),
     ];
 
-    let client = Client::new();
+    let client = reqwest::Client::new();
 
     let response = client.get(url).query(&params).send().await?;
 
@@ -48,6 +48,31 @@ pub async fn get_owned_games(request: GetOwnedGamesRequest) -> Result<Vec<Game>,
         return Err(Error::JsonMissingValueError);
     }
     println!("failed with status code: {}", response.status());
+    Err(Error::HttpStatusError(response.status().as_u16()))
+}
+
+pub async fn get_available_endpoints() -> Result<GetAvailableEndpointsResponse, Error> {
+    eprintln!("getting available endoints...");
+
+    let params = [
+        (
+            "key",
+            env::var("STEAM_API_KEY").expect("STEAM_API_KEY not set"),
+        ),
+    ];
+
+    let url = format!("{base}/ISteamWebAPIUtil/GetSupportedAPIList/v0001/", base = BASE_URL);
+
+    let client = reqwest::Client::new();
+
+    let response = client.get(url).query(&params).send().await?;
+
+    if response.status().is_success() {
+        let body = response.text().await.expect("failed to parse body");
+        let parse_body: GetAvailableEndpointsResponse = serde_json::from_str(&body)?;
+        return Ok(parse_body);
+    }
+
     Err(Error::HttpStatusError(response.status().as_u16()))
 }
 
