@@ -47,7 +47,7 @@ pub async fn games_missing_from_group(
     Ok(games_in_common_minus_focus)
 }
 
-pub async fn resolve_usernames<'a>(usernames: Vec<String>) -> Result<Vec<u64>, Error> {
+pub async fn resolve_usernames(usernames: impl Iterator<Item = &str>) -> Result<Vec<u64>, Error> {
     let my_steamid = env::var("USER_STEAM_ID")
         .expect("env var USER_STEAM_ID must be set in order to resolve usernames directly")
         .parse::<u64>()
@@ -68,7 +68,6 @@ pub async fn resolve_usernames<'a>(usernames: Vec<String>) -> Result<Vec<u64>, E
     let user_summaries =
         client::get_user_summaries(client::GetUserSummariesRequest { ids }).await?;
     let steamids = usernames
-        .iter()
         .map(|username| {
             user_summaries
                 .iter()

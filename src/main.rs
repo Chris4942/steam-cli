@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, iter};
 
 use clap::{command, value_parser, Arg, Command};
 mod steam;
@@ -81,8 +81,7 @@ fn main() {
                 .flatten();
             let steam_ids = if arguments.get_flag("by-name") {
                 let steam_id_strings = partially_ingested_steam_ids
-                    .map(|s| s.to_owned())
-                    .collect::<Vec<_>>();
+                    .map(|s| s.trim());
                 rt.block_on(games_service::resolve_usernames(steam_id_strings))
                     .expect("if this fails then we need to add some logic here to handle it")
             } else {
@@ -111,10 +110,9 @@ fn main() {
                 .into_iter()
                 .flatten();
             let (focus_steam_id, other_steam_ids) = if arguments.get_flag("by-name") {
-                let mut persona_names = partially_ingested_steam_ids
-                    .map(|s| s.to_owned())
-                    .collect::<Vec<_>>();
-                persona_names.push(focus_steam_id.to_owned());
+                let persona_names = partially_ingested_steam_ids
+                    .map(|s| s.trim())
+                    .chain(iter::once(focus_steam_id.trim()));
                 let resolved_steam_ids = rt
                     .block_on(games_service::resolve_usernames(persona_names))
                     .expect("failed to resolve focus or other steam ids");
