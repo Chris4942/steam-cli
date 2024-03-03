@@ -36,9 +36,7 @@ pub async fn games_missing_from_group(
 ) -> Result<HashSet<Game>, Error> {
     println!("finding games missing from group");
     let result = join!(
-        client::get_owned_games(client::GetUserDetailsRequest {
-            id: focus_steam_id,
-        }),
+        client::get_owned_games(client::GetUserDetailsRequest { id: focus_steam_id }),
         find_games_in_common(other_steam_ids)
     );
     let mut games_in_common_minus_focus = result.1?;

@@ -106,28 +106,38 @@ fn main() {
             let focus_steam_id = arguments
                 .get_one::<String>("focus_steam_id")
                 .expect("1 arg required");
-            let focus_steam_id = if arguments.get_flag("by-name") {
-                rt.block_on(games_service::resolve_usernames(vec!(focus_steam_id.to_owned()))).expect("failed to resolved focus steam id by name")[0]
-            } else {
-                focus_steam_id.parse::<u64>().expect("focus steam id should be a valid u64")
-            };
             let partially_ingested_steam_ids = arguments
                 .get_many::<String>("steam_ids")
                 .into_iter()
                 .flatten();
-            let steam_ids = if arguments.get_flag("by-name") {
-                let persona_names = partially_ingested_steam_ids
+            let (focus_steam_id, other_steam_ids) = if arguments.get_flag("by-name") {
+                let mut persona_names = partially_ingested_steam_ids
                     .map(|s| s.to_owned())
                     .collect::<Vec<_>>();
-                rt.block_on(games_service::resolve_usernames(persona_names)).expect("failed to resolve persona names")
+                persona_names.push(focus_steam_id.to_owned());
+                let resolved_steam_ids = rt
+                    .block_on(games_service::resolve_usernames(persona_names))
+                    .expect("failed to resolve focus or other steam ids");
+                (
+                    resolved_steam_ids
+                        .last()
+                        .expect("resolved steam ids list empty. This was probably user error.")
+                        .to_owned(),
+                    resolved_steam_ids[..resolved_steam_ids.len() - 1].to_vec(),
+                )
             } else {
-                partially_ingested_steam_ids
-                .map(|id| id.parse::<u64>().expect("ids should be valid steam ids"))
-                .collect::<Vec<_>>()
+                (
+                    focus_steam_id
+                        .parse::<u64>()
+                        .expect("focus steam id should be a valid u64"),
+                    partially_ingested_steam_ids
+                        .map(|id| id.parse::<u64>().expect("ids should be valid steam ids"))
+                        .collect::<Vec<_>>(),
+                )
             };
             match get_blocking_runtime().block_on(games_service::games_missing_from_group(
                 focus_steam_id,
-                steam_ids,
+                other_steam_ids,
             )) {
                 Ok(games) => println!("{}", compute_sorted_games_string(&games)),
                 Err(err) => {
