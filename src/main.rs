@@ -44,11 +44,11 @@ fn main() {
             Command::new("games-missing-from-group")
             .about("find the games owned by everyone in the group except for the focused steam account")
             .alias("gmig")
-            // .arg(by_name_flag.clone()) // TODO
+            .arg(by_name_flag.clone())
             .arg(
                 Arg::new("focus_steam_id")
                     .help("id associated with the focus steam account")
-                    .value_parser(value_parser!(u64))
+                    .value_parser(value_parser!(String))
             )
             .arg(steam_ids_arg.clone())
             .arg_required_else_help(true)
@@ -91,10 +91,6 @@ fn main() {
                     .collect::<Vec<_>>()
             };
 
-            let by_name_flag = arguments.get_flag("by-name");
-
-            eprintln!("by name flag: {by_name_flag}");
-
             match rt.block_on(games_service::find_games_in_common(steam_ids)) {
                 Ok(games_in_common) => {
                     println!("{}", compute_sorted_games_string(&games_in_common));
@@ -105,15 +101,30 @@ fn main() {
             };
         }
         Some(("games-missing-from-group", arguments)) => {
+            let rt = get_blocking_runtime();
+
             let focus_steam_id = arguments
-                .get_one::<u64>("focus_steam_id")
+                .get_one::<String>("focus_steam_id")
                 .expect("1 arg required");
-            let steam_ids = arguments
+            let focus_steam_id = if arguments.get_flag("by-name") {
+                rt.block_on(games_service::resolve_usernames(vec!(focus_steam_id.to_owned()))).expect("failed to resolved focus steam id by name")[0]
+            } else {
+                focus_steam_id.parse::<u64>().expect("focus steam id should be a valid u64")
+            };
+            let partially_ingested_steam_ids = arguments
                 .get_many::<String>("steam_ids")
                 .into_iter()
-                .flatten()
+                .flatten();
+            let steam_ids = if arguments.get_flag("by-name") {
+                let persona_names = partially_ingested_steam_ids
+                    .map(|s| s.to_owned())
+                    .collect::<Vec<_>>();
+                rt.block_on(games_service::resolve_usernames(persona_names)).expect("failed to resolve persona names")
+            } else {
+                partially_ingested_steam_ids
                 .map(|id| id.parse::<u64>().expect("ids should be valid steam ids"))
-                .collect::<Vec<_>>();
+                .collect::<Vec<_>>()
+            };
             match get_blocking_runtime().block_on(games_service::games_missing_from_group(
                 focus_steam_id,
                 steam_ids,
