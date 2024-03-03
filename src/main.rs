@@ -135,7 +135,7 @@ fn main() {
                         .collect::<Vec<_>>(),
                 )
             };
-            match get_blocking_runtime().block_on(games_service::games_missing_from_group(
+            match rt.block_on(games_service::games_missing_from_group(
                 focus_steam_id,
                 other_steam_ids,
             )) {
