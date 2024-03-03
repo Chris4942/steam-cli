@@ -10,6 +10,23 @@ use steam::{
 use tokio::runtime;
 
 fn main() {
+    let by_name_flag =
+                    Arg::new("by-name")
+                        .help("if present, then steam ids will be interpretted as persona names and resolves against your steam account and your friends steam accounts. This will not work if your friends list contains duplicate persona names")
+                        .long("by-name")
+                        .short('b')
+                        .alias("b")
+                        .action(clap::ArgAction::SetTrue);
+    let steam_ids_arg = Arg::new("steam_ids")
+                        .help("id(s) assoicated with steam account(s), e.g., for accounts 42 and 7: steam-cli gic 7 42")
+                        .num_args(1..)
+                        .value_parser(value_parser!(String));
+
+    let steam_id_arg = Arg::new("steamid")
+        .help("id associated with the steam account")
+        .num_args(1)
+        .value_parser(value_parser!(u64));
+
     let matches = command!()
         .version("0.0")
         .author("Chris West")
@@ -19,34 +36,21 @@ fn main() {
             Command::new("games-in-common")
                 .about("find the intersection of games owned by provided steam accounts")
                 .alias("gic")
-                .arg(
-                    Arg::new("by-name")
-                        .long("by-name")
-                        .action(clap::ArgAction::SetTrue)
-                )
-                .arg(
-                    Arg::new("steam_ids")
-                        .help("id(s) assoicated with steam account(s), e.g., for accounts 42 and 7: steam-cli gic 7 42")
-                        .num_args(1..)
-                        .value_parser(value_parser!(String)),
-                )
+                .arg(by_name_flag.clone())
+                .arg(steam_ids_arg.clone())
                 .arg_required_else_help(true),
         )
         .subcommand(
             Command::new("games-missing-from-group")
             .about("find the games owned by everyone in the group except for the focused steam account")
             .alias("gmig")
+            // .arg(by_name_flag.clone()) // TODO
             .arg(
                 Arg::new("focus_steam_id")
                     .help("id associated with the focus steam account")
                     .value_parser(value_parser!(u64))
             )
-            .arg(
-                Arg::new("steam_ids")
-                    .help("id(s) assoicated with steam account(s), e.g., for accounts 42 and 7: steam-cli gic 7 42")
-                    .num_args(1..)
-                    .value_parser(value_parser!(String)),
-            )
+            .arg(steam_ids_arg.clone())
             .arg_required_else_help(true)
         )
         .subcommand(
@@ -57,21 +61,14 @@ fn main() {
             Command::new("get-user-friends-list")
             .alias("friends")
             .about("get the friends list of the user")
-            .arg(
-                Arg::new("steamid")
-                .help("id associated with the steam account")
-                .num_args(1)
-                .value_parser(value_parser!(u64))
-            )
+            .arg(steam_id_arg.clone())
         )
         .subcommand(
             Command::new("get-player-summary")
-            .arg(
-                Arg::new("steamid")
-                .help("id associated with the steam account")
-                .num_args(1..)
-                .value_parser(value_parser!(u64))
-            )
+            .about("get user summary data")
+            .long_about("get user summary data. Much more data is provided by the steam api than what is exposed by this command. Feel free to submit a PR to update this is you want more")
+            .arg(steam_id_arg.clone())
+            .arg_required_else_help(true)
         )
         .get_matches();
     match matches.subcommand() {
