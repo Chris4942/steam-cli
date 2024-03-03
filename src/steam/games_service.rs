@@ -50,13 +50,14 @@ pub async fn games_missing_from_group(
 }
 
 pub async fn resolve_usernames<'a>(usernames: Vec<String>) -> Result<Vec<u64>, Error> {
-    let id = env::var("USER_STEAM_ID")
+    let my_steamid = env::var("USER_STEAM_ID")
         .expect("env var USER_STEAM_ID must be set in order to resolve usernames directly")
         .parse::<u64>()
         .expect("USER_STEAM_ID needs to be a valid u64");
-    let friends = client::get_user_friends_list(client::GetUserDetailsRequest { id: id }).await?;
+    let friends =
+        client::get_user_friends_list(client::GetUserDetailsRequest { id: my_steamid }).await?;
     println!("got friends");
-    let ids: Vec<u64> = friends
+    let mut ids: Vec<u64> = friends
         .iter()
         .map(|friend| {
             friend
@@ -65,6 +66,7 @@ pub async fn resolve_usernames<'a>(usernames: Vec<String>) -> Result<Vec<u64>, E
                 .expect("The Steam api returned bad data")
         })
         .collect();
+    ids.push(my_steamid);
     let user_summaries =
         client::get_user_summaries(client::GetUserSummariesRequest { ids }).await?;
     let steamids = usernames
@@ -72,7 +74,9 @@ pub async fn resolve_usernames<'a>(usernames: Vec<String>) -> Result<Vec<u64>, E
         .map(|username| {
             user_summaries
                 .iter()
-                .find(|user| user.personaname == *username)
+                .find(|user| {
+                    user.personaname.to_ascii_lowercase() == *username.to_ascii_lowercase()
+                })
                 .expect("supplied user was not in list")
                 .steamid
                 .parse::<u64>()
