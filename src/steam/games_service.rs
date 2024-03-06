@@ -1,4 +1,4 @@
-use super::client;
+use super::client::{self, GetUserSummariesRequest};
 use futures::{future::join_all, join};
 use std::{collections::HashSet, env};
 
@@ -81,6 +81,39 @@ pub async fn resolve_usernames(usernames: impl Iterator<Item = &str>) -> Result<
         })
         .collect::<Vec<_>>();
     return Ok(steamids);
+}
+
+pub async fn find_friends_who_own_game(gameid: &u64) -> Result<Vec<client::UserSummary>, Error> {
+    let my_steamid = env::var("USER_STEAM_ID")
+        .expect("env var USER_STEAM_ID must be set in order to resolve usernames directly")
+        .parse::<u64>()
+        .expect("USER_STEAM_ID needs to be a valid u64");
+    let friends =
+        client::get_user_friends_list(client::GetUserDetailsRequest { id: my_steamid }).await?;
+
+    eprint!("friends list{:?}", friends);
+
+    let mut friends_with_game_ids: Vec<u64> = vec![];
+
+    for friend in friends
+        .iter()
+        .map(|f| f.steamid.parse::<u64>().unwrap())
+        .chain(std::iter::once(my_steamid))
+    {
+        eprintln!("checking against friend: {:?}", friend);
+        let games_own_by_player =
+            client::get_owned_games(client::GetUserDetailsRequest { id: friend }).await?;
+        if games_own_by_player.iter().any(|game| &game.appid == gameid) {
+            friends_with_game_ids.push(friend);
+        }
+    }
+
+    let user_summaries = client::get_user_summaries(GetUserSummariesRequest {
+        ids: friends_with_game_ids,
+    })
+    .await?;
+
+    Ok(user_summaries)
 }
 
 #[derive(Debug)]

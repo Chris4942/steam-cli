@@ -35,7 +35,15 @@ pub async fn get_owned_games(request: GetUserDetailsRequest) -> Result<Vec<Game>
 
     if response.status().is_success() {
         let body = response.text().await.expect("failed to parse body");
+        // eprintln!("response body: {}", body);
         let parse_body: serde_json::Value = serde_json::from_str(&body)?;
+        if !parse_body["response"]
+            .as_object()
+            .unwrap()
+            .contains_key("games")
+        {
+            return Ok(vec![]);
+        }
         if let Some(games_array) = parse_body["response"]["games"].as_array() {
             return Ok(serde_json::from_value(serde_json::Value::Array(
                 games_array.to_owned(),

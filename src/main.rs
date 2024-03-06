@@ -70,6 +70,14 @@ fn main() {
             .arg(steam_id_arg.clone())
             .arg_required_else_help(true)
         )
+        .subcommand(
+            Command::new("friends-who-own-game")
+            .arg(
+                Arg::new("gameid")
+                .value_parser(value_parser!(u64))
+            )
+            .arg_required_else_help(true)
+        )
         .get_matches();
     match matches.subcommand() {
         Some(("games-in-common", arguments)) => {
@@ -201,6 +209,23 @@ fn main() {
                     eprintln!("failed due to: {err:?}");
                 }
             }
+        }
+        Some(("friends-who-own-game", arguments)) => {
+            let gameid = arguments
+                .get_one::<u64>("gameid")
+                .expect("gameid is required to be a valid u64");
+
+            let rt = get_blocking_runtime();
+
+            match rt.block_on(steam::games_service::find_friends_who_own_game(gameid)) {
+                Ok(friends_list) => {
+                    println!("{}", serde_json::to_string_pretty(&friends_list).unwrap());
+                    println!("Total: {}", friends_list.len());
+                }
+                Err(err) => {
+                    eprintln!("failed due to: {err:?}");
+                }
+            };
         }
         None => {
             println!("got nothing");

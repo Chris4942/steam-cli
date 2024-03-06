@@ -4,7 +4,7 @@ use std::fmt;
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Hash, Clone)] // Derive Deserialize and Serialize traits for Game
 pub struct Game {
     pub name: String,
-    appid: i128,
+    pub appid: u64,
 }
 
 impl fmt::Display for Game {
