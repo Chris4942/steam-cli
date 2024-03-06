@@ -35,7 +35,6 @@ pub async fn get_owned_games(request: GetUserDetailsRequest) -> Result<Vec<Game>
 
     if response.status().is_success() {
         let body = response.text().await.expect("failed to parse body");
-        // eprintln!("response body: {}", body);
         let parse_body: serde_json::Value = serde_json::from_str(&body)?;
         if !parse_body["response"]
             .as_object()

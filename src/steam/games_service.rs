@@ -83,7 +83,7 @@ pub async fn resolve_usernames(usernames: impl Iterator<Item = &str>) -> Result<
     return Ok(steamids);
 }
 
-pub async fn find_friends_who_own_game(gameid: &u64) -> Result<Vec<client::UserSummary>, Error> {
+pub async fn find_friends_who_own_game(appid: &u64) -> Result<Vec<client::UserSummary>, Error> {
     let my_steamid = env::var("USER_STEAM_ID")
         .expect("env var USER_STEAM_ID must be set in order to resolve usernames directly")
         .parse::<u64>()
@@ -91,22 +91,30 @@ pub async fn find_friends_who_own_game(gameid: &u64) -> Result<Vec<client::UserS
     let friends =
         client::get_user_friends_list(client::GetUserDetailsRequest { id: my_steamid }).await?;
 
-    eprint!("friends list{:?}", friends);
-
-    let mut friends_with_game_ids: Vec<u64> = vec![];
-
-    for friend in friends
+    let steamids_iterator = friends
         .iter()
-        .map(|f| f.steamid.parse::<u64>().unwrap())
-        .chain(std::iter::once(my_steamid))
-    {
-        eprintln!("checking against friend: {:?}", friend);
-        let games_own_by_player =
-            client::get_owned_games(client::GetUserDetailsRequest { id: friend }).await?;
-        if games_own_by_player.iter().any(|game| &game.appid == gameid) {
-            friends_with_game_ids.push(friend);
-        }
-    }
+        .map(|friend| friend.steamid.parse::<u64>().unwrap())
+        .chain(std::iter::once(my_steamid));
+
+    let player_owned_games = join_all(
+        steamids_iterator
+            .clone() // We need to use this iterator again later so we can't move it here
+            .map(|id| (client::get_owned_games(client::GetUserDetailsRequest { id })))
+            .collect::<Vec<_>>(),
+    )
+    .await;
+
+    let friends_with_game_ids = player_owned_games
+        .into_iter()
+        .filter(|result| result.is_ok())
+        .map(|ok_result| match ok_result {
+            Ok(r) => r,
+            Err(_) => panic!("this should never happen since we just filtered by is_ok"),
+        })
+        .zip(steamids_iterator)
+        .filter(|(games, _)| games.iter().any(|game| &game.appid == appid))
+        .map(|(_, steamid)| steamid)
+        .collect::<Vec<u64>>();
 
     let user_summaries = client::get_user_summaries(GetUserSummariesRequest {
         ids: friends_with_game_ids,
