@@ -169,7 +169,8 @@ fn main() {
                         "{}",
                         serde_json::to_string_pretty(&friends_list)
                             .expect("failed to unwrap values")
-                    )
+                    );
+                    println!("Total: {}", friends_list.len());
                 }
                 Err(err) => {
                     eprintln!("failed due to: {err:?}");
