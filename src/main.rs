@@ -80,8 +80,7 @@ fn main() {
                 .into_iter()
                 .flatten();
             let steam_ids = if arguments.get_flag("by-name") {
-                let steam_id_strings = partially_ingested_steam_ids
-                    .map(|s| s.trim());
+                let steam_id_strings = partially_ingested_steam_ids.map(|s| s.trim());
                 rt.block_on(games_service::resolve_usernames(steam_id_strings))
                     .expect("if this fails then we need to add some logic here to handle it")
             } else {
@@ -158,24 +157,28 @@ fn main() {
             }
         }
         Some(("get-user-friends-list", arguments)) => {
+            let rt = get_blocking_runtime();
             let steamid = arguments.get_one::<u64>("steamid").expect("1 arg required");
-            match get_blocking_runtime().block_on(steam::client::get_user_friends_list(
-                GetUserDetailsRequest {
-                    id: steamid.to_owned(),
-                },
-            )) {
-                Ok(friends_list) => {
-                    println!(
-                        "{}",
-                        serde_json::to_string_pretty(&friends_list)
-                            .expect("failed to unwrap values")
-                    );
-                    println!("Total: {}", friends_list.len());
-                }
-                Err(err) => {
-                    eprintln!("failed due to: {err:?}");
-                }
-            }
+            let friends = rt
+                .block_on(steam::client::get_user_friends_list(
+                    GetUserDetailsRequest {
+                        id: steamid.to_owned(),
+                    },
+                ))
+                .expect("this better have worked");
+
+            let summaries = rt
+                .block_on(steam::client::get_user_summaries(GetUserSummariesRequest {
+                    ids: friends
+                        .iter()
+                        .map(|friend| friend.steamid.parse::<u64>().expect("parsing u64 failed"))
+                        .collect::<Vec<u64>>(),
+                }))
+                .expect("failed to get summaries");
+            println!(
+                "friend summaries: {}",
+                serde_json::to_string_pretty(&summaries).expect("failed to pretty jsonify")
+            );
         }
         Some(("get-player-summary", arguments)) => {
             let steamids = arguments
