@@ -4,7 +4,7 @@ use clap::{command, value_parser, Arg, Command};
 mod steam;
 use steam::{
     client::{GetUserDetailsRequest, GetUserSummariesRequest},
-    games_service,
+    service,
     models::Game,
 };
 use tokio::runtime;
@@ -89,7 +89,7 @@ fn main() {
                 .flatten();
             let steam_ids = if arguments.get_flag("by-name") {
                 let steam_id_strings = partially_ingested_steam_ids.map(|s| s.trim());
-                rt.block_on(games_service::resolve_usernames(steam_id_strings))
+                rt.block_on(service::resolve_usernames(steam_id_strings))
                     .expect("if this fails then we need to add some logic here to handle it")
             } else {
                 partially_ingested_steam_ids
@@ -97,7 +97,7 @@ fn main() {
                     .collect::<Vec<_>>()
             };
 
-            match rt.block_on(games_service::find_games_in_common(steam_ids)) {
+            match rt.block_on(service::find_games_in_common(steam_ids)) {
                 Ok(games_in_common) => {
                     println!("{}", compute_sorted_games_string(&games_in_common));
                 }
@@ -121,7 +121,7 @@ fn main() {
                     .map(|s| s.trim())
                     .chain(iter::once(focus_steam_id.trim()));
                 let resolved_steam_ids = rt
-                    .block_on(games_service::resolve_usernames(persona_names))
+                    .block_on(service::resolve_usernames(persona_names))
                     .expect("failed to resolve focus or other steam ids");
                 (
                     resolved_steam_ids
@@ -140,7 +140,7 @@ fn main() {
                         .collect::<Vec<_>>(),
                 )
             };
-            match rt.block_on(games_service::games_missing_from_group(
+            match rt.block_on(service::games_missing_from_group(
                 focus_steam_id,
                 other_steam_ids,
             )) {
@@ -217,7 +217,7 @@ fn main() {
 
             let rt = get_blocking_runtime();
 
-            match rt.block_on(steam::games_service::find_friends_who_own_game(gameid)) {
+            match rt.block_on(steam::service::find_friends_who_own_game(gameid)) {
                 Ok(friends_list) => {
                     println!("{}", serde_json::to_string_pretty(&friends_list).unwrap());
                     println!("Total: {}", friends_list.len());
