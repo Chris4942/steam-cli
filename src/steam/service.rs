@@ -106,12 +106,15 @@ pub async fn find_friends_who_own_game(appid: &u64) -> Result<Vec<client::UserSu
 
     let friends_with_game_ids = player_owned_games
         .into_iter()
-        .filter(|result| result.is_ok())
-        .map(|ok_result| match ok_result {
-            Ok(r) => r,
-            Err(_) => panic!("this should never happen since we just filtered by is_ok"),
-        })
         .zip(steamids_iterator)
+        .filter(|(result, _)| match result {
+            Ok(_) => true,
+            Err(err) => {
+                eprintln!("filtering out result due to {:?}", err);
+                false
+            }
+        })
+        .map(|(ok_result, steamid)| (ok_result.expect("we just filtered by is_ok"), steamid))
         .filter(|(games, _)| games.iter().any(|game| &game.appid == appid))
         .map(|(_, steamid)| steamid)
         .collect::<Vec<u64>>();

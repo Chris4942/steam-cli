@@ -4,8 +4,8 @@ use clap::{command, value_parser, Arg, Command};
 mod steam;
 use steam::{
     client::{GetUserDetailsRequest, GetUserSummariesRequest},
-    service,
     models::Game,
+    service,
 };
 use tokio::runtime;
 

@@ -4,16 +4,16 @@ use reqwest;
 use serde::{Deserialize, Serialize};
 
 use super::models::Game;
+use backoff::ExponentialBackoff;
 
 const BASE_URL: &str = "http://api.steampowered.com";
 
 pub async fn get_owned_games(request: GetUserDetailsRequest) -> Result<Vec<Game>, Error> {
-    eprintln!("running get_owned_games_async for {:?}", request);
-
     let url = format!(
         "{base}/IPlayerService/GetOwnedGames/v0001/",
         base = BASE_URL
     );
+    let url_slice = &url[..];
 
     let params = [
         (
@@ -30,8 +30,22 @@ pub async fn get_owned_games(request: GetUserDetailsRequest) -> Result<Vec<Game>
     ];
 
     let client = reqwest::Client::new();
-
-    let response = client.get(url).query(&params).send().await?;
+    let response = backoff::future::retry(ExponentialBackoff::default(), || async {
+        let response = client.get(url_slice).query(&params).send().await.unwrap();
+        if response.status().is_success() {
+            return Ok(response);
+        }
+        if response.status().as_u16() == 429 {
+            eprintln!("retyring for {} due to 429", request.id);
+            return Err(backoff::Error::Transient {
+                err: 429,
+                retry_after: None,
+            });
+        }
+        return Err(backoff::Error::Permanent(response.status().as_u16()));
+    })
+    .await
+    .unwrap();
 
     if response.status().is_success() {
         let body = response.text().await.expect("failed to parse body");
