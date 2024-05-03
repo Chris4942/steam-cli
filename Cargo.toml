@@ -2,6 +2,11 @@
 name = "steam-cli"
 path = "src/cli.rs"
 
+[[bin]]
+name = "discord-steam-ai"
+path = "src/discord-cli.rs"
+
+
 [package]
 name = "steam-cli"
 version = "0.1.0"
@@ -16,4 +21,5 @@ futures = "0.3.30"
 reqwest = "0.12.4"
 serde = { version = "1.0.197", features = ["derive"] }
 serde_json = "1.0.114"
-tokio = "1.36.0"
+serenity = "0.12"
+tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread"] }
