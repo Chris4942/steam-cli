@@ -1,2 +1,4 @@
 target/*
 available-endpoints.json
+
+.env
