@@ -1,4 +1,4 @@
-use std::{collections::HashSet, iter};
+use std::{collections::HashSet, iter, vec};
 
 use clap::{command, value_parser, Arg, Command};
 use tokio::runtime;
@@ -10,7 +10,7 @@ use crate::steam::{
 
 use super::{client, service};
 
-pub fn run_command() -> Result<String, String> {
+pub fn run_command(args: vec::IntoIter<String>) -> Result<String, String> {
     let by_name_flag =
                     Arg::new("by-name")
                         .help("if present, then steam ids will be interpretted as persona names and resolves against your steam account and your friends steam accounts. This will not work if your friends list contains duplicate persona names")
@@ -79,7 +79,7 @@ pub fn run_command() -> Result<String, String> {
             )
             .arg_required_else_help(true)
         )
-        .get_matches();
+        .get_matches_from(args);
     match matches.subcommand() {
         Some(("games-in-common", arguments)) => {
             let rt = get_blocking_runtime();
