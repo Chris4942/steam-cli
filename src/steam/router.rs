@@ -1,15 +1,16 @@
 use std::{collections::HashSet, iter};
 
 use clap::{command, value_parser, Arg, Command};
-mod steam;
-use steam::{
-    client::{GetUserDetailsRequest, GetUserSummariesRequest},
-    models::Game,
-    service,
-};
 use tokio::runtime;
 
-fn main() {
+use crate::steam::{
+    client::{GetUserDetailsRequest, GetUserSummariesRequest},
+    models::Game,
+};
+
+use super::{client, service};
+
+pub fn run_command() -> Result<String, String> {
     let by_name_flag =
                     Arg::new("by-name")
                         .help("if present, then steam ids will be interpretted as persona names and resolves against your steam account and your friends steam accounts. This will not work if your friends list contains duplicate persona names")
@@ -99,10 +100,10 @@ fn main() {
 
             match rt.block_on(service::find_games_in_common(steam_ids)) {
                 Ok(games_in_common) => {
-                    println!("{}", compute_sorted_games_string(&games_in_common));
+                    return Ok(format!("{}", compute_sorted_games_string(&games_in_common)));
                 }
                 Err(err) => {
-                    println!("failed due to: {err:?}");
+                    return Ok(format!("failed due to: {err:?}"));
                 }
             };
         }
@@ -144,49 +145,38 @@ fn main() {
                 focus_steam_id,
                 other_steam_ids,
             )) {
-                Ok(games) => println!("{}", compute_sorted_games_string(&games)),
-                Err(err) => {
-                    eprintln!("failed due to: {err:?}");
-                }
+                Ok(games) => Ok(compute_sorted_games_string(&games)),
+                Err(err) => Err(format!("failed due to: {err:?}")),
             }
         }
         Some(("get-available-endpoints", _)) => {
-            match get_blocking_runtime().block_on(steam::client::get_available_endpoints()) {
-                Ok(available_endpoints) => {
-                    println!(
-                        "{}",
-                        serde_json::to_string_pretty(&available_endpoints)
-                            .expect("failed to unwrap values")
-                    );
-                }
-                Err(err) => {
-                    eprintln!("failed due to: {err:?}");
-                }
+            match get_blocking_runtime().block_on(client::get_available_endpoints()) {
+                Ok(available_endpoints) => Ok(serde_json::to_string_pretty(&available_endpoints)
+                    .expect("failed to unwrap values")),
+                Err(err) => Err(format!("failed due to: {err:?}")),
             }
         }
         Some(("get-user-friends-list", arguments)) => {
             let rt = get_blocking_runtime();
             let steamid = arguments.get_one::<u64>("steamid").expect("1 arg required");
             let friends = rt
-                .block_on(steam::client::get_user_friends_list(
-                    GetUserDetailsRequest {
-                        id: steamid.to_owned(),
-                    },
-                ))
+                .block_on(client::get_user_friends_list(GetUserDetailsRequest {
+                    id: steamid.to_owned(),
+                }))
                 .expect("this better have worked");
 
             let summaries = rt
-                .block_on(steam::client::get_user_summaries(GetUserSummariesRequest {
+                .block_on(client::get_user_summaries(GetUserSummariesRequest {
                     ids: friends
                         .iter()
                         .map(|friend| friend.steamid.parse::<u64>().expect("parsing u64 failed"))
                         .collect::<Vec<u64>>(),
                 }))
                 .expect("failed to get summaries");
-            println!(
+            Ok(format!(
                 "friend summaries: {}",
-                serde_json::to_string_pretty(&summaries).expect("failed to pretty jsonify")
-            );
+                serde_json::to_string_pretty(&summaries).expect("failed to pretty jsonify"),
+            ))
         }
         Some(("get-player-summary", arguments)) => {
             let steamids = arguments
@@ -195,19 +185,14 @@ fn main() {
                 .flatten()
                 .map(|i| i.to_owned())
                 .collect::<Vec<_>>();
-            match get_blocking_runtime().block_on(steam::client::get_user_summaries(
+            match get_blocking_runtime().block_on(client::get_user_summaries(
                 GetUserSummariesRequest { ids: steamids },
             )) {
                 Ok(friends_list) => {
-                    println!(
-                        "{}",
-                        serde_json::to_string_pretty(&friends_list)
-                            .expect("failed to unwrap values")
-                    )
+                    Ok(serde_json::to_string_pretty(&friends_list)
+                        .expect("failed to unwrap values"))
                 }
-                Err(err) => {
-                    eprintln!("failed due to: {err:?}");
-                }
+                Err(err) => Err(format!("failed due to: {err:?}")),
             }
         }
         Some(("friends-who-own-game", arguments)) => {
@@ -217,19 +202,16 @@ fn main() {
 
             let rt = get_blocking_runtime();
 
-            match rt.block_on(steam::service::find_friends_who_own_game(gameid)) {
-                Ok(friends_list) => {
-                    println!("{}", serde_json::to_string_pretty(&friends_list).unwrap());
-                    println!("Total: {}", friends_list.len());
-                }
-                Err(err) => {
-                    eprintln!("failed due to: {err:?}");
-                }
-            };
+            match rt.block_on(service::find_friends_who_own_game(gameid)) {
+                Ok(friends_list) => Ok(format!(
+                    "{}\nTotal: {}",
+                    serde_json::to_string_pretty(&friends_list).unwrap(),
+                    friends_list.len()
+                )),
+                Err(err) => Err(format!("failed due to: {err:?}")),
+            }
         }
-        None => {
-            println!("got nothing");
-        }
+        None => Err("got nothing".to_owned()),
         _ => unreachable!(),
     }
 }
