@@ -28,7 +28,7 @@ pub async fn run_command(args: vec::IntoIter<String>) -> Result<String, String> 
         .value_parser(value_parser!(u64));
 
     match command!()
-        .version("0.0")
+        .version("0.1")
         .author("Chris West")
         .about("Some utility functions to run against steam")
         .arg_required_else_help(true)
