@@ -126,7 +126,7 @@ async fn run_subcommand<'a>(
                                 "if this fails then we need to add some logic here to handle it",
                             )
                     }
-                    None => return Err(Error::ArgumentError("user_steam_id is required in order to resolve user_steam_ids by persona name")),
+                    None => return Err(Error::Argument("user_steam_id is required in order to resolve user_steam_ids by persona name")),
                 }
             } else {
                 partially_ingested_steam_ids
@@ -165,7 +165,7 @@ async fn run_subcommand<'a>(
                             resolved_steam_ids[..resolved_steam_ids.len() - 1].to_vec(),
                         )
                     }
-                    None => return Err(Error::ArgumentError("user_steam_id is required in order to resolve user_steam_ids by persona name")),
+                    None => return Err(Error::Argument("user_steam_id is required in order to resolve user_steam_ids by persona name")),
                 }
             } else {
                 (
@@ -189,7 +189,7 @@ async fn run_subcommand<'a>(
             let id = if arguments.get_flag("self") {
                 match user_steam_id {
                     Some(user_steam_id) => user_steam_id,
-                    None => return Err(Error::ParseError("user_steam_id is required in order to resolve user_steam_ids by persona name".to_owned())),
+                    None => return Err(Error::Parse("user_steam_id is required in order to resolve user_steam_ids by persona name".to_owned())),
                 }
             } else {
                 arguments
@@ -226,7 +226,7 @@ async fn run_subcommand<'a>(
                         .chain(iter::once(user_steam_id))
                         .collect::<Vec<_>>(),
                     None => {
-                        return Err(Error::ArgumentError(
+                        return Err(Error::Argument(
                             "user_steam_id is required in order use self flag",
                         ))
                     }
@@ -241,9 +241,9 @@ async fn run_subcommand<'a>(
         Some(("friends-who-own-game", arguments)) => {
             let gameid = arguments
                 .get_one::<u64>("gameid")
-                .ok_or(Error::ArgumentError("gameid must be a valid u64"))?;
+                .ok_or(Error::Argument("gameid must be a valid u64"))?;
 
-            let user_steam_id = user_steam_id.ok_or(Error::ArgumentError(
+            let user_steam_id = user_steam_id.ok_or(Error::Argument(
                 "user_steam_id must be set to run this command",
             ))?;
 
@@ -255,47 +255,47 @@ async fn run_subcommand<'a>(
                 friends_list.len()
             ))
         }
-        None => return Err(Error::ArgumentError("thing")),
+        None => return Err(Error::Argument("thing")),
         _ => unreachable!(),
     }
 }
 
 pub enum Error<'a> {
-    ArgumentError(&'a str),
-    ParseError(String),
-    ExecutionError(String),
+    Argument(&'a str),
+    Parse(String),
+    Execution(String),
 }
 
 impl<'a> From<client::Error> for Error<'a> {
     fn from(value: client::Error) -> Self {
-        Error::ExecutionError(value.to_string())
+        Error::Execution(value.to_string())
     }
 }
 
 impl<'a> From<service::Error> for Error<'a> {
     fn from(value: service::Error) -> Self {
-        Error::ExecutionError(value.to_string())
+        Error::Execution(value.to_string())
     }
 }
 
 impl<'a> From<serde_json::Error> for Error<'a> {
     fn from(value: serde_json::Error) -> Self {
-        Error::ExecutionError(value.to_string())
+        Error::Execution(value.to_string())
     }
 }
 
 impl<'a> From<ClapError> for Error<'a> {
     fn from(value: ClapError) -> Self {
-        Error::ExecutionError(value.to_string())
+        Error::Execution(value.to_string())
     }
 }
 
 impl<'a> Display for Error<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::ArgumentError(str) => write!(f, "ArgumentError: {}", str),
-            Error::ParseError(str) => write!(f, "ParseError: {}", str),
-            Error::ExecutionError(str) => write!(f, "ExecutionError: {}", str),
+            Error::Argument(str) => write!(f, "ArgumentError: {}", str),
+            Error::Parse(str) => write!(f, "ParseError: {}", str),
+            Error::Execution(str) => write!(f, "ExecutionError: {}", str),
         }
     }
 }
