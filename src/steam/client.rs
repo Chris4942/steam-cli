@@ -42,7 +42,7 @@ pub async fn get_owned_games(request: GetUserDetailsRequest) -> Result<Vec<Game>
                 retry_after: None,
             });
         }
-        return Err(backoff::Error::Permanent(response.status().as_u16()));
+        Err(backoff::Error::Permanent(response.status().as_u16()))
     })
     .await
     .unwrap();
@@ -62,9 +62,9 @@ pub async fn get_owned_games(request: GetUserDetailsRequest) -> Result<Vec<Game>
                 games_array.to_owned(),
             ))?);
         }
-        return Err(Error::JsonMissingValueError);
+        return Err(Error::JsonMissingValue);
     }
-    Err(Error::HttpStatusError(response.status().as_u16()))
+    Err(Error::HttpStatus(response.status().as_u16()))
 }
 
 pub async fn get_available_endpoints() -> Result<GetAvailableEndpointsResponse, Error> {
@@ -90,7 +90,7 @@ pub async fn get_available_endpoints() -> Result<GetAvailableEndpointsResponse, 
         return Ok(parse_body);
     }
 
-    Err(Error::HttpStatusError(response.status().as_u16()))
+    Err(Error::HttpStatus(response.status().as_u16()))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -123,10 +123,10 @@ pub async fn get_user_friends_list(request: GetUserDetailsRequest) -> Result<Vec
                 friends.to_owned(),
             ))?);
         }
-        return Err(Error::JsonMissingValueError);
+        return Err(Error::JsonMissingValue);
     }
 
-    Err(Error::HttpStatusError(response.status().into()))
+    Err(Error::HttpStatus(response.status().into()))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -169,10 +169,10 @@ pub async fn get_user_summaries(
                 players.to_owned(),
             ))?);
         }
-        return Err(Error::JsonMissingValueError);
+        return Err(Error::JsonMissingValue);
     }
 
-    Err(Error::HttpStatusError(response.status().into()))
+    Err(Error::HttpStatus(response.status().into()))
 }
 
 #[derive(Debug)]
@@ -221,31 +221,31 @@ pub struct SteamMethodParameter {
 
 #[derive(Debug)]
 pub enum Error {
-    JsonError(serde_json::Error),
-    JsonMissingValueError,
-    HttpError(reqwest::Error),
-    HttpStatusError(u16),
+    Json(serde_json::Error),
+    JsonMissingValue,
+    Http(reqwest::Error),
+    HttpStatus(u16),
 }
 
 impl From<serde_json::Error> for Error {
     fn from(value: serde_json::Error) -> Self {
-        Self::JsonError(value)
+        Self::Json(value)
     }
 }
 
 impl From<reqwest::Error> for Error {
     fn from(value: reqwest::Error) -> Self {
-        Self::HttpError(value)
+        Self::Http(value)
     }
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::JsonError(err) => write!(f, "JsonError({})", err),
-            Error::JsonMissingValueError => write!(f, "JsonMissingValueError"),
-            Error::HttpError(err) => write!(f, "HttpError({})", err),
-            Error::HttpStatusError(err) => write!(f, "HttpStatusError({})", err),
+            Error::Json(err) => write!(f, "JsonError({})", err),
+            Error::JsonMissingValue => write!(f, "JsonMissingValueError"),
+            Error::Http(err) => write!(f, "HttpError({})", err),
+            Error::HttpStatus(err) => write!(f, "HttpStatusError({})", err),
         }
     }
 }

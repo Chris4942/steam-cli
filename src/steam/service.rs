@@ -139,7 +139,7 @@ impl From<client::Error> for Error {
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::ClientError(value) => write!(f, "ClientError: {}", value.to_string()),
+            Error::ClientError(value) => write!(f, "ClientError: {}", value),
         }
     }
 }
