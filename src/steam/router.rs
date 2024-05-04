@@ -1,6 +1,6 @@
 use std::{collections::HashSet, iter, vec};
 
-use clap::{command, value_parser, Arg, Command};
+use clap::{command, value_parser, Arg, ArgMatches, Command};
 use tokio::runtime;
 
 use crate::steam::{
@@ -28,7 +28,7 @@ pub fn run_command(args: vec::IntoIter<String>) -> Result<String, String> {
         .num_args(1)
         .value_parser(value_parser!(u64));
 
-    let matches = command!()
+    match command!()
         .version("0.0")
         .author("Chris West")
         .about("Some utility functions to run against steam")
@@ -79,7 +79,35 @@ pub fn run_command(args: vec::IntoIter<String>) -> Result<String, String> {
             )
             .arg_required_else_help(true)
         )
-        .get_matches_from(args);
+        .try_get_matches_from(args) {
+            Ok(matches) => run_subcommand(matches),
+            Err(err) => Err(err.to_string()),
+        }
+}
+
+fn get_blocking_runtime() -> runtime::Runtime {
+    runtime::Builder::new_current_thread()
+        .enable_io()
+        .enable_time()
+        .build()
+        .expect("tokio is borked")
+}
+
+fn compute_sorted_games_string(games: &HashSet<Game>) -> String {
+    let mut games: Vec<&Game> = games.iter().collect();
+    games.sort_by(|a, b| a.name.cmp(&b.name));
+    format!(
+        "{games}\n\tTotal: {total}\n",
+        games = games
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<String>>()
+            .join("\n"),
+        total = games.len()
+    )
+}
+
+fn run_subcommand(matches: ArgMatches) -> Result<String, String> {
     match matches.subcommand() {
         Some(("games-in-common", arguments)) => {
             let rt = get_blocking_runtime();
@@ -99,13 +127,9 @@ pub fn run_command(args: vec::IntoIter<String>) -> Result<String, String> {
             };
 
             match rt.block_on(service::find_games_in_common(steam_ids)) {
-                Ok(games_in_common) => {
-                    return Ok(format!("{}", compute_sorted_games_string(&games_in_common)));
-                }
-                Err(err) => {
-                    return Ok(format!("failed due to: {err:?}"));
-                }
-            };
+                Ok(games_in_common) => Ok(compute_sorted_games_string(&games_in_common)),
+                Err(err) => Ok(format!("failed due to: {err:?}")),
+            }
         }
         Some(("games-missing-from-group", arguments)) => {
             let rt = get_blocking_runtime();
@@ -214,26 +238,4 @@ pub fn run_command(args: vec::IntoIter<String>) -> Result<String, String> {
         None => Err("got nothing".to_owned()),
         _ => unreachable!(),
     }
-}
-
-fn get_blocking_runtime() -> runtime::Runtime {
-    runtime::Builder::new_current_thread()
-        .enable_io()
-        .enable_time()
-        .build()
-        .expect("tokio is borked")
-}
-
-fn compute_sorted_games_string(games: &HashSet<Game>) -> String {
-    let mut games: Vec<&Game> = games.iter().collect();
-    games.sort_by(|a, b| a.name.cmp(&b.name));
-    format!(
-        "{games}\n\tTotal: {total}\n",
-        games = games
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<String>>()
-            .join("\n"),
-        total = games.len()
-    )
 }
