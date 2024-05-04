@@ -31,7 +31,7 @@ impl EventHandler for Handler {
             .await
             {
                 Ok(result) => send_message(ctx, msg, result).await,
-                Err(result) => send_message(ctx, msg, result).await,
+                Err(result) => send_message(ctx, msg, result.to_string()).await,
             }
         }
     }

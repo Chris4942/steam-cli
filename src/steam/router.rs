@@ -1,6 +1,6 @@
-use std::{collections::HashSet, iter, vec};
+use std::{collections::HashSet, fmt::Display, iter, vec};
 
-use clap::{command, value_parser, Arg, ArgMatches, Command};
+use clap::{command, value_parser, Arg, ArgMatches, Command, Error as ClapError};
 
 use crate::steam::{
     client::{GetUserDetailsRequest, GetUserSummariesRequest},
@@ -9,10 +9,10 @@ use crate::steam::{
 
 use super::{client, service};
 
-pub async fn run_command(
+pub async fn run_command<'a>(
     args: vec::IntoIter<String>,
     user_id: Option<u64>,
-) -> Result<String, String> {
+) -> Result<String, Error<'a>> {
     let by_name_flag = Arg::new("by-name")
         .help("if present, then steam ids will be interpretted as persona names and resolves against your steam account and your friends steam accounts. This will not work if your friends list contains duplicate persona names")
         .long("by-name")
@@ -35,7 +35,7 @@ pub async fn run_command(
         .num_args(1)
         .value_parser(value_parser!(u64));
 
-    match command!()
+    let matches = command!()
         .version("0.1.3")
         .author("Chris West")
         .about("Some utility functions to run against steam")
@@ -88,10 +88,8 @@ pub async fn run_command(
             )
             .arg_required_else_help(true)
         )
-        .try_get_matches_from(args) {
-            Ok(matches) => run_subcommand(matches, user_id).await,
-            Err(err) => Err(err.to_string()),
-        }
+        .try_get_matches_from(args)?;
+    run_subcommand(matches, user_id).await
 }
 
 fn compute_sorted_games_string(games: &HashSet<Game>) -> String {
@@ -108,7 +106,10 @@ fn compute_sorted_games_string(games: &HashSet<Game>) -> String {
     )
 }
 
-async fn run_subcommand(matches: ArgMatches, user_steam_id: Option<u64>) -> Result<String, String> {
+async fn run_subcommand<'a>(
+    matches: ArgMatches,
+    user_steam_id: Option<u64>,
+) -> Result<String, Error<'a>> {
     match matches.subcommand() {
         Some(("games-in-common", arguments)) => {
             let partially_ingested_steam_ids = arguments
@@ -125,7 +126,7 @@ async fn run_subcommand(matches: ArgMatches, user_steam_id: Option<u64>) -> Resu
                                 "if this fails then we need to add some logic here to handle it",
                             )
                     }
-                    None => return Err("user_steam_id is required in order to resolve user_steam_ids by persona name".to_owned()),
+                    None => return Err(Error::ArgumentError("user_steam_id is required in order to resolve user_steam_ids by persona name")),
                 }
             } else {
                 partially_ingested_steam_ids
@@ -164,7 +165,7 @@ async fn run_subcommand(matches: ArgMatches, user_steam_id: Option<u64>) -> Resu
                             resolved_steam_ids[..resolved_steam_ids.len() - 1].to_vec(),
                         )
                     }
-                    None => return Err("user_steam_id is required in order to resolve user_steam_ids by persona name".to_owned()),
+                    None => return Err(Error::ArgumentError("user_steam_id is required in order to resolve user_steam_ids by persona name")),
                 }
             } else {
                 (
@@ -176,21 +177,19 @@ async fn run_subcommand(matches: ArgMatches, user_steam_id: Option<u64>) -> Resu
                         .collect::<Vec<_>>(),
                 )
             };
-            match service::games_missing_from_group(focus_steam_id, other_steam_ids).await {
-                Ok(games) => Ok(compute_sorted_games_string(&games)),
-                Err(err) => Err(format!("failed due to: {err:?}")),
-            }
+            let games = service::games_missing_from_group(focus_steam_id, other_steam_ids).await?;
+            Ok(compute_sorted_games_string(&games))
         }
-        Some(("get-available-endpoints", _)) => match client::get_available_endpoints().await {
-            Ok(available_endpoints) => Ok(serde_json::to_string_pretty(&available_endpoints)
-                .expect("failed to unwrap values")),
-            Err(err) => Err(format!("failed due to: {err:?}")),
-        },
+        Some(("get-available-endpoints", _)) => {
+            let available_endpoints = client::get_available_endpoints().await?;
+            let pretty_string = serde_json::to_string_pretty(&available_endpoints)?;
+            Ok(pretty_string)
+        }
         Some(("get-user-friends-list", arguments)) => {
             let id = if arguments.get_flag("self") {
                 match user_steam_id {
                     Some(user_steam_id) => user_steam_id,
-                    None => return Err("user_steam_id is required in order to resolve user_steam_ids by persona name".to_owned()),
+                    None => return Err(Error::ParseError("user_steam_id is required in order to resolve user_steam_ids by persona name".to_owned())),
                 }
             } else {
                 arguments
@@ -227,43 +226,76 @@ async fn run_subcommand(matches: ArgMatches, user_steam_id: Option<u64>) -> Resu
                         .chain(iter::once(user_steam_id))
                         .collect::<Vec<_>>(),
                     None => {
-                        return Err("user_steam_id is required in order use self flag".to_owned())
+                        return Err(Error::ArgumentError(
+                            "user_steam_id is required in order use self flag",
+                        ))
                     }
                 }
             } else {
                 steam_ids_iter.collect::<Vec<_>>()
             };
-            match client::get_user_summaries(GetUserSummariesRequest { ids: steamids }).await {
-                Ok(friends_list) => {
-                    Ok(serde_json::to_string_pretty(&friends_list)
-                        .expect("failed to unwrap values"))
-                }
-                Err(err) => Err(format!("failed due to: {err:?}")),
-            }
+            let friends_list =
+                client::get_user_summaries(GetUserSummariesRequest { ids: steamids }).await?;
+            Ok(serde_json::to_string_pretty(&friends_list).expect("failed to unwrap values"))
         }
         Some(("friends-who-own-game", arguments)) => {
             let gameid = arguments
                 .get_one::<u64>("gameid")
-                .expect("gameid is required to be a valid u64");
+                .ok_or(Error::ArgumentError("gameid must be a valid u64"))?;
 
-            match user_steam_id {
-                Some(user_steam_id) => {
-                    match service::find_friends_who_own_game(gameid, user_steam_id).await {
-                        Ok(friends_list) => Ok(format!(
-                            "{}\nTotal: {}",
-                            serde_json::to_string_pretty(&friends_list).unwrap(),
-                            friends_list.len()
-                        )),
-                        Err(err) => Err(format!("failed due to: {err:?}")),
-                    }
-                }
-                None => Err(
-                    "user_steam_id is required in order to resolve user_steam_ids by persona name"
-                        .to_owned(),
-                ),
-            }
+            let user_steam_id = user_steam_id.ok_or(Error::ArgumentError(
+                "user_steam_id must be set to run this command",
+            ))?;
+
+            let friends_list = service::find_friends_who_own_game(gameid, user_steam_id).await?;
+
+            Ok(format!(
+                "{}\nTotal: {}",
+                serde_json::to_string_pretty(&friends_list).unwrap(),
+                friends_list.len()
+            ))
         }
-        None => Err("got nothing".to_owned()),
+        None => return Err(Error::ArgumentError("thing")),
         _ => unreachable!(),
+    }
+}
+
+pub enum Error<'a> {
+    ArgumentError(&'a str),
+    ParseError(String),
+    ExecutionError(String),
+}
+
+impl<'a> From<client::Error> for Error<'a> {
+    fn from(value: client::Error) -> Self {
+        Error::ExecutionError(value.to_string())
+    }
+}
+
+impl<'a> From<service::Error> for Error<'a> {
+    fn from(value: service::Error) -> Self {
+        Error::ExecutionError(value.to_string())
+    }
+}
+
+impl<'a> From<serde_json::Error> for Error<'a> {
+    fn from(value: serde_json::Error) -> Self {
+        Error::ExecutionError(value.to_string())
+    }
+}
+
+impl<'a> From<ClapError> for Error<'a> {
+    fn from(value: ClapError) -> Self {
+        Error::ExecutionError(value.to_string())
+    }
+}
+
+impl<'a> Display for Error<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::ArgumentError(str) => write!(f, "ArgumentError: {}", str),
+            Error::ParseError(str) => write!(f, "ParseError: {}", str),
+            Error::ExecutionError(str) => write!(f, "ExecutionError: {}", str),
+        }
     }
 }

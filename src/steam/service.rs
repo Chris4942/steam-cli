@@ -1,6 +1,6 @@
 use super::client::{self, GetUserSummariesRequest};
 use futures::{future::join_all, join};
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt::Display};
 
 use super::models::Game;
 
@@ -133,5 +133,13 @@ pub enum Error {
 impl From<client::Error> for Error {
     fn from(value: client::Error) -> Self {
         Error::ClientError(value)
+    }
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::ClientError(value) => write!(f, "ClientError: {}", value.to_string()),
+        }
     }
 }

@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, env};
+use std::{borrow::Borrow, env, fmt::Display};
 
 use reqwest;
 use serde::{Deserialize, Serialize};
@@ -236,5 +236,16 @@ impl From<serde_json::Error> for Error {
 impl From<reqwest::Error> for Error {
     fn from(value: reqwest::Error) -> Self {
         Self::HttpError(value)
+    }
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::JsonError(err) => write!(f, "JsonError({})", err),
+            Error::JsonMissingValueError => write!(f, "JsonMissingValueError"),
+            Error::HttpError(err) => write!(f, "HttpError({})", err),
+            Error::HttpStatusError(err) => write!(f, "HttpStatusError({})", err),
+        }
     }
 }
