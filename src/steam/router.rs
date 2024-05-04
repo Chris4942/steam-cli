@@ -13,17 +13,22 @@ pub async fn run_command(
     args: vec::IntoIter<String>,
     user_id: Option<u64>,
 ) -> Result<String, String> {
-    let by_name_flag =
-                    Arg::new("by-name")
-                        .help("if present, then steam ids will be interpretted as persona names and resolves against your steam account and your friends steam accounts. This will not work if your friends list contains duplicate persona names")
-                        .long("by-name")
-                        .short('b')
-                        .alias("b")
-                        .action(clap::ArgAction::SetTrue);
+    let by_name_flag = Arg::new("by-name")
+        .help("if present, then steam ids will be interpretted as persona names and resolves against your steam account and your friends steam accounts. This will not work if your friends list contains duplicate persona names")
+        .long("by-name")
+        .short('b')
+        .alias("b")
+        .action(clap::ArgAction::SetTrue);
+    let self_flag = Arg::new("self")
+        .help("if present, then the calling user will be included as a steam id. In the discord implemenation, then this currently is hard coded to my steam_id")
+        .long("self")
+        .short('s')
+        .alias("s")
+        .action(clap::ArgAction::SetTrue);
     let steam_ids_arg = Arg::new("steam_ids")
-                        .help("id(s) assoicated with steam account(s), e.g., for accounts 42 and 7: steam-cli gic 7 42")
-                        .num_args(1..)
-                        .value_parser(value_parser!(String));
+        .help("id(s) assoicated with steam account(s), e.g., for accounts 42 and 7: steam-cli gic 7 42")
+        .num_args(1..)
+        .value_parser(value_parser!(String));
 
     let steam_id_arg = Arg::new("steamid")
         .help("id associated with the steam account")
@@ -31,7 +36,7 @@ pub async fn run_command(
         .value_parser(value_parser!(u64));
 
     match command!()
-        .version("0.1")
+        .version("0.1.1")
         .author("Chris West")
         .about("Some utility functions to run against steam")
         .arg_required_else_help(true)
@@ -65,6 +70,7 @@ pub async fn run_command(
             .alias("friends")
             .about("get the friends list of the user")
             .arg(steam_id_arg.clone())
+            .arg(self_flag.clone())
         )
         .subcommand(
             Command::new("get-player-summary")
@@ -180,12 +186,20 @@ async fn run_subcommand(matches: ArgMatches, user_steam_id: Option<u64>) -> Resu
             Err(err) => Err(format!("failed due to: {err:?}")),
         },
         Some(("get-user-friends-list", arguments)) => {
-            let steamid = arguments.get_one::<u64>("steamid").expect("1 arg required");
-            let friends = client::get_user_friends_list(GetUserDetailsRequest {
-                id: steamid.to_owned(),
-            })
-            .await
-            .expect("this better have worked");
+            let id = if arguments.get_flag("self") {
+                match user_steam_id {
+                    Some(user_steam_id) => user_steam_id,
+                    None => return Err("user_steam_id is required in order to resolve user_steam_ids by persona name".to_owned()),
+                }
+            } else {
+                arguments
+                    .get_one::<u64>("steamid")
+                    .expect("1 arg required")
+                    .to_owned()
+            };
+            let friends = client::get_user_friends_list(GetUserDetailsRequest { id })
+                .await
+                .expect("this better have worked");
 
             let summaries = client::get_user_summaries(GetUserSummariesRequest {
                 ids: friends
