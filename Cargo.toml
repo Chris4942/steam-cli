@@ -3,7 +3,7 @@ name = "steam-cli"
 path = "src/cli.rs"
 
 [[bin]]
-name = "discord-steam-ai"
+name = "discord-steam-cli"
 path = "src/discord-cli.rs"
 
 
@@ -16,10 +16,10 @@ edition = "2021"
 
 [dependencies]
 backoff = { version = "0.4.0", features = ["tokio"] }
-clap = { version = "4.4.18", features = ["derive", "cargo"] }
+clap = { version = "4.5.4", features = ["derive", "cargo"] }
 futures = "0.3.30"
 reqwest = "0.12.4"
-serde = { version = "1.0.197", features = ["derive"] }
-serde_json = "1.0.114"
+serde = { version = "1.0.200", features = ["derive"] }
+serde_json = "1.0.116"
 serenity = "0.12"
 tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread"] }

@@ -36,7 +36,7 @@ pub async fn run_command(
         .value_parser(value_parser!(u64));
 
     match command!()
-        .version("0.1.2")
+        .version("0.1.3")
         .author("Chris West")
         .about("Some utility functions to run against steam")
         .arg_required_else_help(true)
