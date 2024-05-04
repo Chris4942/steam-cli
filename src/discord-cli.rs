@@ -1,7 +1,6 @@
 use std::env;
 
-use serde_json;
-use serenity::all::{GuildId, Ready};
+use serenity::all::Ready;
 use serenity::async_trait;
 use serenity::model::channel::Message;
 use serenity::prelude::*;
@@ -21,33 +20,22 @@ impl EventHandler for Handler {
                 .map(|s| s.to_owned())
                 .collect::<Vec<_>>();
             match router::run_command(args.into_iter()).await {
-                Ok(result) => {
-                    if let Err(why) = msg.channel_id.say(&ctx.http, result).await {
-                        println!("Error sending message: {why:?}")
-                    }
-                }
-                Err(result) => {
-                    if let Err(why) = msg.channel_id.say(&ctx.http, result).await {
-                        println!("Error sending message: {why:?}")
-                    }
-                }
-            }
-        }
-
-        if msg.content == "!ping" {
-            if let Err(why) = msg.channel_id.say(&ctx.http, "Pong!").await {
-                println!("Error sending message: {why:?}");
+                Ok(result) => send_message(ctx, msg, result).await,
+                Err(result) => send_message(ctx, msg, result).await,
             }
         }
     }
 
-    async fn ready(&self, _ctx: Context, ready: Ready) {
-        println!("{} is connected!", ready.user.name);
-        println!("{}", serde_json::to_string_pretty(&ready).unwrap());
+    async fn ready(&self, _ctx: Context, _ready: Ready) {}
+}
 
-        let guild_id = GuildId::new(1127646508905406527);
-        // let commands = GuildId::set_application_command(&guild_id, &ctx.http, |command| {});
-        println!("{}", guild_id);
+async fn send_message(ctx: Context, msg: Message, message: String) {
+    if let Err(why) = msg
+        .channel_id
+        .say(&ctx.http, format!("```\n{message}\n```", message = message))
+        .await
+    {
+        println!("Error sending message: {why:?}")
     }
 }
 
