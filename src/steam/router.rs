@@ -36,7 +36,7 @@ pub async fn run_command<'a>(
         .value_parser(value_parser!(u64));
 
     let matches = command!()
-        .version("0.1.4")
+        .version("0.1.5")
         .author("Chris West")
         .about("Some utility functions to run against steam")
         .arg_required_else_help(true)
@@ -194,7 +194,7 @@ async fn run_subcommand<'a>(
             } else {
                 arguments
                     .get_one::<u64>("steamid")
-                    .expect("1 arg required")
+                    .ok_or(Error::Argument("1 arg required"))?
                     .to_owned()
             };
             let friends = client::get_user_friends_list(GetUserDetailsRequest { id })
