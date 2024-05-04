@@ -20,7 +20,7 @@ impl EventHandler for Handler {
                 .split(' ')
                 .map(|s| s.to_owned())
                 .collect::<Vec<_>>();
-            match router::run_command(args.into_iter()) {
+            match router::run_command(args.into_iter()).await {
                 Ok(result) => {
                     if let Err(why) = msg.channel_id.say(&ctx.http, result).await {
                         println!("Error sending message: {why:?}")
@@ -41,7 +41,7 @@ impl EventHandler for Handler {
         }
     }
 
-    async fn ready(&self, ctx: Context, ready: Ready) {
+    async fn ready(&self, _ctx: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
         println!("{}", serde_json::to_string_pretty(&ready).unwrap());
 

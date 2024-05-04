@@ -1,7 +1,6 @@
 use std::{collections::HashSet, iter, vec};
 
 use clap::{command, value_parser, Arg, ArgMatches, Command};
-use tokio::runtime;
 
 use crate::steam::{
     client::{GetUserDetailsRequest, GetUserSummariesRequest},
@@ -10,7 +9,7 @@ use crate::steam::{
 
 use super::{client, service};
 
-pub fn run_command(args: vec::IntoIter<String>) -> Result<String, String> {
+pub async fn run_command(args: vec::IntoIter<String>) -> Result<String, String> {
     let by_name_flag =
                     Arg::new("by-name")
                         .help("if present, then steam ids will be interpretted as persona names and resolves against your steam account and your friends steam accounts. This will not work if your friends list contains duplicate persona names")
@@ -80,17 +79,9 @@ pub fn run_command(args: vec::IntoIter<String>) -> Result<String, String> {
             .arg_required_else_help(true)
         )
         .try_get_matches_from(args) {
-            Ok(matches) => run_subcommand(matches),
+            Ok(matches) => run_subcommand(matches).await,
             Err(err) => Err(err.to_string()),
         }
-}
-
-fn get_blocking_runtime() -> runtime::Runtime {
-    runtime::Builder::new_current_thread()
-        .enable_io()
-        .enable_time()
-        .build()
-        .expect("tokio is borked")
 }
 
 fn compute_sorted_games_string(games: &HashSet<Game>) -> String {
@@ -107,18 +98,17 @@ fn compute_sorted_games_string(games: &HashSet<Game>) -> String {
     )
 }
 
-fn run_subcommand(matches: ArgMatches) -> Result<String, String> {
+async fn run_subcommand(matches: ArgMatches) -> Result<String, String> {
     match matches.subcommand() {
         Some(("games-in-common", arguments)) => {
-            let rt = get_blocking_runtime();
-
             let partially_ingested_steam_ids = arguments
                 .get_many::<String>("steam_ids")
                 .into_iter()
                 .flatten();
             let steam_ids = if arguments.get_flag("by-name") {
                 let steam_id_strings = partially_ingested_steam_ids.map(|s| s.trim());
-                rt.block_on(service::resolve_usernames(steam_id_strings))
+                service::resolve_usernames(steam_id_strings)
+                    .await
                     .expect("if this fails then we need to add some logic here to handle it")
             } else {
                 partially_ingested_steam_ids
@@ -126,14 +116,12 @@ fn run_subcommand(matches: ArgMatches) -> Result<String, String> {
                     .collect::<Vec<_>>()
             };
 
-            match rt.block_on(service::find_games_in_common(steam_ids)) {
+            match service::find_games_in_common(steam_ids).await {
                 Ok(games_in_common) => Ok(compute_sorted_games_string(&games_in_common)),
                 Err(err) => Ok(format!("failed due to: {err:?}")),
             }
         }
         Some(("games-missing-from-group", arguments)) => {
-            let rt = get_blocking_runtime();
-
             let focus_steam_id = arguments
                 .get_one::<String>("focus_steam_id")
                 .expect("1 arg required");
@@ -145,8 +133,8 @@ fn run_subcommand(matches: ArgMatches) -> Result<String, String> {
                 let persona_names = partially_ingested_steam_ids
                     .map(|s| s.trim())
                     .chain(iter::once(focus_steam_id.trim()));
-                let resolved_steam_ids = rt
-                    .block_on(service::resolve_usernames(persona_names))
+                let resolved_steam_ids = service::resolve_usernames(persona_names)
+                    .await
                     .expect("failed to resolve focus or other steam ids");
                 (
                     resolved_steam_ids
@@ -165,38 +153,32 @@ fn run_subcommand(matches: ArgMatches) -> Result<String, String> {
                         .collect::<Vec<_>>(),
                 )
             };
-            match rt.block_on(service::games_missing_from_group(
-                focus_steam_id,
-                other_steam_ids,
-            )) {
+            match service::games_missing_from_group(focus_steam_id, other_steam_ids).await {
                 Ok(games) => Ok(compute_sorted_games_string(&games)),
                 Err(err) => Err(format!("failed due to: {err:?}")),
             }
         }
-        Some(("get-available-endpoints", _)) => {
-            match get_blocking_runtime().block_on(client::get_available_endpoints()) {
-                Ok(available_endpoints) => Ok(serde_json::to_string_pretty(&available_endpoints)
-                    .expect("failed to unwrap values")),
-                Err(err) => Err(format!("failed due to: {err:?}")),
-            }
-        }
+        Some(("get-available-endpoints", _)) => match client::get_available_endpoints().await {
+            Ok(available_endpoints) => Ok(serde_json::to_string_pretty(&available_endpoints)
+                .expect("failed to unwrap values")),
+            Err(err) => Err(format!("failed due to: {err:?}")),
+        },
         Some(("get-user-friends-list", arguments)) => {
-            let rt = get_blocking_runtime();
             let steamid = arguments.get_one::<u64>("steamid").expect("1 arg required");
-            let friends = rt
-                .block_on(client::get_user_friends_list(GetUserDetailsRequest {
-                    id: steamid.to_owned(),
-                }))
-                .expect("this better have worked");
+            let friends = client::get_user_friends_list(GetUserDetailsRequest {
+                id: steamid.to_owned(),
+            })
+            .await
+            .expect("this better have worked");
 
-            let summaries = rt
-                .block_on(client::get_user_summaries(GetUserSummariesRequest {
-                    ids: friends
-                        .iter()
-                        .map(|friend| friend.steamid.parse::<u64>().expect("parsing u64 failed"))
-                        .collect::<Vec<u64>>(),
-                }))
-                .expect("failed to get summaries");
+            let summaries = client::get_user_summaries(GetUserSummariesRequest {
+                ids: friends
+                    .iter()
+                    .map(|friend| friend.steamid.parse::<u64>().expect("parsing u64 failed"))
+                    .collect::<Vec<u64>>(),
+            })
+            .await
+            .expect("failed to get summaries");
             Ok(format!(
                 "friend summaries: {}",
                 serde_json::to_string_pretty(&summaries).expect("failed to pretty jsonify"),
@@ -209,9 +191,7 @@ fn run_subcommand(matches: ArgMatches) -> Result<String, String> {
                 .flatten()
                 .map(|i| i.to_owned())
                 .collect::<Vec<_>>();
-            match get_blocking_runtime().block_on(client::get_user_summaries(
-                GetUserSummariesRequest { ids: steamids },
-            )) {
+            match client::get_user_summaries(GetUserSummariesRequest { ids: steamids }).await {
                 Ok(friends_list) => {
                     Ok(serde_json::to_string_pretty(&friends_list)
                         .expect("failed to unwrap values"))
@@ -224,9 +204,7 @@ fn run_subcommand(matches: ArgMatches) -> Result<String, String> {
                 .get_one::<u64>("gameid")
                 .expect("gameid is required to be a valid u64");
 
-            let rt = get_blocking_runtime();
-
-            match rt.block_on(service::find_friends_who_own_game(gameid)) {
+            match service::find_friends_who_own_game(gameid).await {
                 Ok(friends_list) => Ok(format!(
                     "{}\nTotal: {}",
                     serde_json::to_string_pretty(&friends_list).unwrap(),
