@@ -36,7 +36,7 @@ pub async fn run_command<'a>(
         .value_parser(value_parser!(u64));
 
     let matches = command!()
-        .version("0.1.5")
+        .version("0.1.6")
         .author("Chris West")
         .about("Some utility functions to run against steam")
         .arg_required_else_help(true)
@@ -142,7 +142,7 @@ async fn run_subcommand<'a>(
         Some(("games-missing-from-group", arguments)) => {
             let focus_steam_id = arguments
                 .get_one::<String>("focus_steam_id")
-                .expect("1 arg required");
+                .ok_or(Error::Argument("1 arg required"))?;
             let partially_ingested_steam_ids = arguments
                 .get_many::<String>("steam_ids")
                 .into_iter()
@@ -151,22 +151,21 @@ async fn run_subcommand<'a>(
                 let persona_names = partially_ingested_steam_ids
                     .map(|s| s.trim())
                     .chain(iter::once(focus_steam_id.trim()));
-                match user_steam_id {
-                    Some(user_steam_id) => {
-                        let resolved_steam_ids =
-                            service::resolve_usernames(persona_names, user_steam_id)
-                                .await
-                                .expect("failed to resolve focus or other steam ids");
-                        (
-                            resolved_steam_ids
-                                .last()
-                                .expect("resolved steam ids list empty. This was probably user error.")
-                                .to_owned(),
-                            resolved_steam_ids[..resolved_steam_ids.len() - 1].to_vec(),
-                        )
-                    }
-                    None => return Err(Error::Argument("user_steam_id is required in order to resolve user_steam_ids by persona name")),
-                }
+                let user_steam_id = user_steam_id.ok_or(Error::Argument(
+                    "user_steam_id must be a valid u64 if trying to resolve by-name",
+                ))?;
+                let resolved_steam_ids =
+                    service::resolve_usernames(persona_names, user_steam_id).await?;
+                (
+                    resolved_steam_ids
+                        .last()
+                        .ok_or(Error::Execution(
+                            "resolved steam ids list empty. This was probably user error."
+                                .to_string(),
+                        ))?
+                        .to_owned(),
+                    resolved_steam_ids[..resolved_steam_ids.len() - 1].to_vec(),
+                )
             } else {
                 (
                     focus_steam_id
