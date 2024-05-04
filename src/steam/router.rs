@@ -220,13 +220,21 @@ async fn run_subcommand(matches: ArgMatches, user_steam_id: Option<u64>) -> Resu
                 .get_one::<u64>("gameid")
                 .expect("gameid is required to be a valid u64");
 
-            match service::find_friends_who_own_game(gameid).await {
-                Ok(friends_list) => Ok(format!(
-                    "{}\nTotal: {}",
-                    serde_json::to_string_pretty(&friends_list).unwrap(),
-                    friends_list.len()
-                )),
-                Err(err) => Err(format!("failed due to: {err:?}")),
+            match user_steam_id {
+                Some(user_steam_id) => {
+                    match service::find_friends_who_own_game(gameid, user_steam_id).await {
+                        Ok(friends_list) => Ok(format!(
+                            "{}\nTotal: {}",
+                            serde_json::to_string_pretty(&friends_list).unwrap(),
+                            friends_list.len()
+                        )),
+                        Err(err) => Err(format!("failed due to: {err:?}")),
+                    }
+                }
+                None => Err(
+                    "user_steam_id is required in order to resolve user_steam_ids by persona name"
+                        .to_owned(),
+                ),
             }
         }
         None => Err("got nothing".to_owned()),

@@ -1,6 +1,6 @@
 use super::client::{self, GetUserSummariesRequest};
 use futures::{future::join_all, join};
-use std::{collections::HashSet, env};
+use std::collections::HashSet;
 
 use super::models::Game;
 
@@ -79,14 +79,13 @@ pub async fn resolve_usernames(
                 .expect("logic error occured in steamapi or I had bad assumptions")
         })
         .collect::<Vec<_>>();
-    return Ok(steamids);
+    Ok(steamids)
 }
 
-pub async fn find_friends_who_own_game(appid: &u64) -> Result<Vec<client::UserSummary>, Error> {
-    let my_steamid = env::var("USER_STEAM_ID")
-        .expect("env var USER_STEAM_ID must be set in order to resolve usernames directly")
-        .parse::<u64>()
-        .expect("USER_STEAM_ID needs to be a valid u64");
+pub async fn find_friends_who_own_game(
+    appid: &u64,
+    my_steamid: u64,
+) -> Result<Vec<client::UserSummary>, Error> {
     let friends =
         client::get_user_friends_list(client::GetUserDetailsRequest { id: my_steamid }).await?;
 
