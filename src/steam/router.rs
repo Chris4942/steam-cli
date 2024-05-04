@@ -36,7 +36,7 @@ pub async fn run_command(
         .value_parser(value_parser!(u64));
 
     match command!()
-        .version("0.1.1")
+        .version("0.1.2")
         .author("Chris West")
         .about("Some utility functions to run against steam")
         .arg_required_else_help(true)
@@ -77,6 +77,7 @@ pub async fn run_command(
             .about("get user summary data")
             .long_about("get user summary data. Much more data is provided by the steam api than what is exposed by this command. Feel free to submit a PR to update this is you want more")
             .arg(steam_id_arg.clone())
+            .arg(self_flag.clone())
             .arg_required_else_help(true)
         )
         .subcommand(
@@ -215,12 +216,23 @@ async fn run_subcommand(matches: ArgMatches, user_steam_id: Option<u64>) -> Resu
             ))
         }
         Some(("get-player-summary", arguments)) => {
-            let steamids = arguments
+            let steam_ids_iter = arguments
                 .get_many::<u64>("steamid")
                 .into_iter()
                 .flatten()
-                .map(|i| i.to_owned())
-                .collect::<Vec<_>>();
+                .map(|i| i.to_owned());
+            let steamids = if arguments.get_flag("self") {
+                match user_steam_id {
+                    Some(user_steam_id) => steam_ids_iter
+                        .chain(iter::once(user_steam_id))
+                        .collect::<Vec<_>>(),
+                    None => {
+                        return Err("user_steam_id is required in order use self flag".to_owned())
+                    }
+                }
+            } else {
+                steam_ids_iter.collect::<Vec<_>>()
+            };
             match client::get_user_summaries(GetUserSummariesRequest { ids: steamids }).await {
                 Ok(friends_list) => {
                     Ok(serde_json::to_string_pretty(&friends_list)
