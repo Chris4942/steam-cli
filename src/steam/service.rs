@@ -47,11 +47,10 @@ pub async fn games_missing_from_group(
     Ok(games_in_common_minus_focus)
 }
 
-pub async fn resolve_usernames(usernames: impl Iterator<Item = &str>) -> Result<Vec<u64>, Error> {
-    let my_steamid = env::var("USER_STEAM_ID")
-        .expect("env var USER_STEAM_ID must be set in order to resolve usernames directly")
-        .parse::<u64>()
-        .expect("USER_STEAM_ID needs to be a valid u64");
+pub async fn resolve_usernames(
+    usernames: impl Iterator<Item = &str>,
+    my_steamid: u64,
+) -> Result<Vec<u64>, Error> {
     let friends =
         client::get_user_friends_list(client::GetUserDetailsRequest { id: my_steamid }).await?;
     println!("got friends");

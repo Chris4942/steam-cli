@@ -9,7 +9,10 @@ use crate::steam::{
 
 use super::{client, service};
 
-pub async fn run_command(args: vec::IntoIter<String>) -> Result<String, String> {
+pub async fn run_command(
+    args: vec::IntoIter<String>,
+    user_id: Option<u64>,
+) -> Result<String, String> {
     let by_name_flag =
                     Arg::new("by-name")
                         .help("if present, then steam ids will be interpretted as persona names and resolves against your steam account and your friends steam accounts. This will not work if your friends list contains duplicate persona names")
@@ -79,7 +82,7 @@ pub async fn run_command(args: vec::IntoIter<String>) -> Result<String, String> 
             .arg_required_else_help(true)
         )
         .try_get_matches_from(args) {
-            Ok(matches) => run_subcommand(matches).await,
+            Ok(matches) => run_subcommand(matches, user_id).await,
             Err(err) => Err(err.to_string()),
         }
 }
@@ -98,7 +101,7 @@ fn compute_sorted_games_string(games: &HashSet<Game>) -> String {
     )
 }
 
-async fn run_subcommand(matches: ArgMatches) -> Result<String, String> {
+async fn run_subcommand(matches: ArgMatches, user_steam_id: Option<u64>) -> Result<String, String> {
     match matches.subcommand() {
         Some(("games-in-common", arguments)) => {
             let partially_ingested_steam_ids = arguments
@@ -106,10 +109,17 @@ async fn run_subcommand(matches: ArgMatches) -> Result<String, String> {
                 .into_iter()
                 .flatten();
             let steam_ids = if arguments.get_flag("by-name") {
-                let steam_id_strings = partially_ingested_steam_ids.map(|s| s.trim());
-                service::resolve_usernames(steam_id_strings)
-                    .await
-                    .expect("if this fails then we need to add some logic here to handle it")
+                match user_steam_id {
+                    Some(user_steam_id) => {
+                        let steam_id_strings = partially_ingested_steam_ids.map(|s| s.trim());
+                        service::resolve_usernames(steam_id_strings, user_steam_id)
+                            .await
+                            .expect(
+                                "if this fails then we need to add some logic here to handle it",
+                            )
+                    }
+                    None => return Err("user_steam_id is required in order to resolve user_steam_ids by persona name".to_owned()),
+                }
             } else {
                 partially_ingested_steam_ids
                     .map(|id| id.parse::<u64>().expect("ids should be valid steam ids"))
@@ -133,16 +143,22 @@ async fn run_subcommand(matches: ArgMatches) -> Result<String, String> {
                 let persona_names = partially_ingested_steam_ids
                     .map(|s| s.trim())
                     .chain(iter::once(focus_steam_id.trim()));
-                let resolved_steam_ids = service::resolve_usernames(persona_names)
-                    .await
-                    .expect("failed to resolve focus or other steam ids");
-                (
-                    resolved_steam_ids
-                        .last()
-                        .expect("resolved steam ids list empty. This was probably user error.")
-                        .to_owned(),
-                    resolved_steam_ids[..resolved_steam_ids.len() - 1].to_vec(),
-                )
+                match user_steam_id {
+                    Some(user_steam_id) => {
+                        let resolved_steam_ids =
+                            service::resolve_usernames(persona_names, user_steam_id)
+                                .await
+                                .expect("failed to resolve focus or other steam ids");
+                        (
+                            resolved_steam_ids
+                                .last()
+                                .expect("resolved steam ids list empty. This was probably user error.")
+                                .to_owned(),
+                            resolved_steam_ids[..resolved_steam_ids.len() - 1].to_vec(),
+                        )
+                    }
+                    None => return Err("user_steam_id is required in order to resolve user_steam_ids by persona name".to_owned()),
+                }
             } else {
                 (
                     focus_steam_id

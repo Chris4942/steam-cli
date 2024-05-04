@@ -19,7 +19,17 @@ impl EventHandler for Handler {
                 .split(' ')
                 .map(|s| s.to_owned())
                 .collect::<Vec<_>>();
-            match router::run_command(args.into_iter()).await {
+            match router::run_command(
+                args.into_iter(),
+                Some(
+                    env::var("USER_STEAM_ID")
+                        .expect("TODO, this shouldn't be hardcoded like this here")
+                        .parse::<u64>()
+                        .expect("TODO this shouldn't be hardcoded like this"),
+                ),
+            )
+            .await
+            {
                 Ok(result) => send_message(ctx, msg, result).await,
                 Err(result) => send_message(ctx, msg, result).await,
             }
