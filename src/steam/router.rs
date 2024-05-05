@@ -36,7 +36,7 @@ pub async fn run_command<'a>(
         .value_parser(value_parser!(u64));
 
     let matches = command!()
-        .version("0.1.7")
+        .version("0.1.8")
         .author("Chris West")
         .about("Some utility functions to run against steam")
         .arg_required_else_help(true)
@@ -117,24 +117,20 @@ async fn run_subcommand<'a>(
                 .into_iter()
                 .flatten();
             let steam_ids = if arguments.get_flag("by-name") {
-                match user_steam_id {
-                    Some(user_steam_id) => {
-                        let steam_id_strings = partially_ingested_steam_ids.map(|s| s.trim());
-                        service::resolve_usernames(steam_id_strings, user_steam_id)
-                            .await?
-                    }
-                    None => return Err(Error::Argument("user_steam_id is required in order to resolve user_steam_ids by persona name")),
-                }
+                let user_steam_id = user_steam_id.ok_or(Error::Argument(
+                    "user_steam_id is required in order to resolve user_steam_ids by persona name",
+                ))?;
+                let steam_id_strings = partially_ingested_steam_ids.map(|s| s.trim());
+                service::resolve_usernames(steam_id_strings, user_steam_id).await?
             } else {
                 partially_ingested_steam_ids
                     .map(|id| id.parse::<u64>().expect("ids should be valid steam ids"))
                     .collect::<Vec<_>>()
             };
 
-            match service::find_games_in_common(steam_ids).await {
-                Ok(games_in_common) => Ok(compute_sorted_games_string(&games_in_common)),
-                Err(err) => Ok(format!("failed due to: {err:?}")),
-            }
+            Ok(compute_sorted_games_string(
+                &service::find_games_in_common(steam_ids).await?,
+            ))
         }
         Some(("games-missing-from-group", arguments)) => {
             let focus_steam_id = arguments
