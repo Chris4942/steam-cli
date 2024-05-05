@@ -36,7 +36,7 @@ pub async fn run_command<'a>(
         .value_parser(value_parser!(u64));
 
     let matches = command!()
-        .version("0.1.8")
+        .version("0.1.9")
         .author("Chris West")
         .about("Some utility functions to run against steam")
         .arg_required_else_help(true)
@@ -161,9 +161,7 @@ async fn run_subcommand<'a>(
                 )
             } else {
                 (
-                    focus_steam_id
-                        .parse::<u64>()
-                        .expect("focus steam id should be a valid u64"),
+                    focus_steam_id.parse::<u64>()?,
                     partially_ingested_steam_ids
                         .map(|id| id.parse::<u64>().expect("ids should be valid steam ids"))
                         .collect::<Vec<_>>(),
@@ -189,9 +187,7 @@ async fn run_subcommand<'a>(
                     .ok_or(Error::Argument("1 arg required"))?
                     .to_owned()
             };
-            let friends = client::get_user_friends_list(GetUserDetailsRequest { id })
-                .await
-                .expect("this better have worked");
+            let friends = client::get_user_friends_list(GetUserDetailsRequest { id }).await?;
 
             let summaries = client::get_user_summaries(GetUserSummariesRequest {
                 ids: friends
@@ -199,11 +195,10 @@ async fn run_subcommand<'a>(
                     .map(|friend| friend.steamid.parse::<u64>().expect("parsing u64 failed"))
                     .collect::<Vec<u64>>(),
             })
-            .await
-            .expect("failed to get summaries");
+            .await?;
             Ok(format!(
                 "friend summaries: {}",
-                serde_json::to_string_pretty(&summaries).expect("failed to pretty jsonify"),
+                serde_json::to_string_pretty(&summaries)?,
             ))
         }
         Some(("get-player-summary", arguments)) => {
@@ -228,7 +223,7 @@ async fn run_subcommand<'a>(
             };
             let friends_list =
                 client::get_user_summaries(GetUserSummariesRequest { ids: steamids }).await?;
-            Ok(serde_json::to_string_pretty(&friends_list).expect("failed to unwrap values"))
+            Ok(serde_json::to_string_pretty(&friends_list)?)
         }
         Some(("friends-who-own-game", arguments)) => {
             let gameid = arguments
