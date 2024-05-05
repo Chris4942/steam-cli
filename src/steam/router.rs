@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt::Display, iter, vec};
+use std::{collections::HashSet, fmt::Display, iter, num::ParseIntError, vec};
 
 use clap::{command, value_parser, Arg, ArgMatches, Command, Error as ClapError};
 
@@ -36,7 +36,7 @@ pub async fn run_command<'a>(
         .value_parser(value_parser!(u64));
 
     let matches = command!()
-        .version("0.1.6")
+        .version("0.1.7")
         .author("Chris West")
         .about("Some utility functions to run against steam")
         .arg_required_else_help(true)
@@ -121,10 +121,7 @@ async fn run_subcommand<'a>(
                     Some(user_steam_id) => {
                         let steam_id_strings = partially_ingested_steam_ids.map(|s| s.trim());
                         service::resolve_usernames(steam_id_strings, user_steam_id)
-                            .await
-                            .expect(
-                                "if this fails then we need to add some logic here to handle it",
-                            )
+                            .await?
                     }
                     None => return Err(Error::Argument("user_steam_id is required in order to resolve user_steam_ids by persona name")),
                 }
@@ -296,5 +293,11 @@ impl<'a> Display for Error<'a> {
             Error::Parse(str) => write!(f, "ParseError: {}", str),
             Error::Execution(str) => write!(f, "ExecutionError: {}", str),
         }
+    }
+}
+
+impl<'a> From<ParseIntError> for Error<'a> {
+    fn from(value: ParseIntError) -> Self {
+        return Error::Parse(value.to_string());
     }
 }
