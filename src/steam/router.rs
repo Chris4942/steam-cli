@@ -36,7 +36,7 @@ pub async fn run_command<'a>(
         .value_parser(value_parser!(u64));
 
     let matches = command!()
-        .version("0.1.9")
+        .version("0.1.10")
         .author("Chris West")
         .about("Some utility functions to run against steam")
         .arg_required_else_help(true)
@@ -177,10 +177,9 @@ async fn run_subcommand<'a>(
         }
         Some(("get-user-friends-list", arguments)) => {
             let id = if arguments.get_flag("self") {
-                match user_steam_id {
-                    Some(user_steam_id) => user_steam_id,
-                    None => return Err(Error::Parse("user_steam_id is required in order to resolve user_steam_ids by persona name".to_owned())),
-                }
+                user_steam_id.ok_or(Error::Argument(
+                    "user_steam_id is required in order to resolve user_steam_ids by persona name",
+                ))?
             } else {
                 arguments
                     .get_one::<u64>("steamid")
@@ -208,16 +207,12 @@ async fn run_subcommand<'a>(
                 .flatten()
                 .map(|i| i.to_owned());
             let steamids = if arguments.get_flag("self") {
-                match user_steam_id {
-                    Some(user_steam_id) => steam_ids_iter
-                        .chain(iter::once(user_steam_id))
-                        .collect::<Vec<_>>(),
-                    None => {
-                        return Err(Error::Argument(
-                            "user_steam_id is required in order use self flag",
-                        ))
-                    }
-                }
+                let user_steam_id = user_steam_id.ok_or(Error::Argument(
+                    "user_steam_id is required in order use self flag",
+                ))?;
+                steam_ids_iter
+                    .chain(iter::once(user_steam_id))
+                    .collect::<Vec<_>>()
             } else {
                 steam_ids_iter.collect::<Vec<_>>()
             };
