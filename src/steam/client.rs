@@ -1,4 +1,8 @@
-use std::{borrow::Borrow, env, fmt::Display};
+use std::{
+    borrow::Borrow,
+    env::{self, VarError},
+    fmt::Display,
+};
 
 use reqwest;
 use serde::{Deserialize, Serialize};
@@ -16,10 +20,7 @@ pub async fn get_owned_games(request: GetUserDetailsRequest) -> Result<Vec<Game>
     let url_slice = &url[..];
 
     let params = [
-        (
-            "key",
-            env::var("STEAM_API_KEY").expect("STEAM_API_KEY not set"),
-        ),
+        ("key", env::var("STEAM_API_KEY")?),
         ("steamId", request.id.to_string()),
         ("format", "json".to_string()),
         ("include_appinfo", "true".to_string()),
@@ -48,7 +49,7 @@ pub async fn get_owned_games(request: GetUserDetailsRequest) -> Result<Vec<Game>
     .unwrap();
 
     if response.status().is_success() {
-        let body = response.text().await.expect("failed to parse body");
+        let body = response.text().await?;
         let parse_body: serde_json::Value = serde_json::from_str(&body)?;
         if !parse_body["response"]
             .as_object()
@@ -70,10 +71,7 @@ pub async fn get_owned_games(request: GetUserDetailsRequest) -> Result<Vec<Game>
 pub async fn get_available_endpoints() -> Result<GetAvailableEndpointsResponse, Error> {
     eprintln!("getting available endoints...");
 
-    let params = [(
-        "key",
-        env::var("STEAM_API_KEY").expect("STEAM_API_KEY not set"),
-    )];
+    let params = [("key", env::var("STEAM_API_KEY")?)];
 
     let url = format!(
         "{base}/ISteamWebAPIUtil/GetSupportedAPIList/v0001/",
@@ -85,7 +83,7 @@ pub async fn get_available_endpoints() -> Result<GetAvailableEndpointsResponse, 
     let response = client.get(url).query(&params).send().await?;
 
     if response.status().is_success() {
-        let body = response.text().await.expect("failed to parse body");
+        let body = response.text().await?;
         let parse_body: GetAvailableEndpointsResponse = serde_json::from_str(&body)?;
         return Ok(parse_body);
     }
@@ -103,10 +101,7 @@ pub async fn get_user_friends_list(request: GetUserDetailsRequest) -> Result<Vec
     eprintln!("getting user friends for user: {user}");
 
     let params = [
-        (
-            "key",
-            env::var("STEAM_API_KEY").expect("STEAM_API_KEY not set"),
-        ),
+        ("key", env::var("STEAM_API_KEY")?),
         ("steamid", user.to_string()),
     ];
 
@@ -116,7 +111,7 @@ pub async fn get_user_friends_list(request: GetUserDetailsRequest) -> Result<Vec
     let response = client.get(url).query(&params).send().await?;
 
     if response.status().is_success() {
-        let body = response.text().await.expect("failed to parse body");
+        let body = response.text().await?;
         let parse_body: serde_json::Value = serde_json::from_str(&body)?;
         if let Some(friends) = parse_body["friendslist"]["friends"].as_array() {
             return Ok(serde_json::from_value(serde_json::Value::Array(
@@ -141,10 +136,7 @@ pub async fn get_user_summaries(
     eprintln!("getting player summary for users: {:?}", users);
 
     let params = [
-        (
-            "key",
-            env::var("STEAM_API_KEY").expect("STEAM_API_KEY not set"),
-        ),
+        ("key", env::var("STEAM_API_KEY")?),
         (
             "steamids",
             users.iter().fold(String::new(), |aggregate, id| {
@@ -162,7 +154,7 @@ pub async fn get_user_summaries(
     let response = client.get(url).query(&params).send().await?;
 
     if response.status().is_success() {
-        let body = response.text().await.expect("failed to parse body");
+        let body = response.text().await?;
         let parse_body: serde_json::Value = serde_json::from_str(&body)?;
         if let Some(players) = parse_body["response"]["players"].as_array() {
             return Ok(serde_json::from_value(serde_json::Value::Array(
@@ -225,6 +217,7 @@ pub enum Error {
     JsonMissingValue,
     Http(reqwest::Error),
     HttpStatus(u16),
+    MissingApiKey(VarError),
 }
 
 impl From<serde_json::Error> for Error {
@@ -239,6 +232,12 @@ impl From<reqwest::Error> for Error {
     }
 }
 
+impl From<VarError> for Error {
+    fn from(value: VarError) -> Self {
+        Self::MissingApiKey(value)
+    }
+}
+
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -246,6 +245,7 @@ impl Display for Error {
             Error::JsonMissingValue => write!(f, "JsonMissingValueError"),
             Error::Http(err) => write!(f, "HttpError({})", err),
             Error::HttpStatus(err) => write!(f, "HttpStatusError({})", err),
+            Error::MissingApiKey(err) => write!(f, "MissingApiKey({})", err),
         }
     }
 }

@@ -1,6 +1,6 @@
 use super::client::{self, GetUserSummariesRequest};
 use futures::{future::join_all, join};
-use std::{collections::HashSet, fmt::Display};
+use std::{collections::HashSet, fmt::Display, num::ParseIntError};
 
 use super::models::Game;
 
@@ -56,13 +56,8 @@ pub async fn resolve_usernames(
     println!("got friends");
     let mut ids: Vec<u64> = friends
         .iter()
-        .map(|friend| {
-            friend
-                .steamid
-                .parse::<u64>()
-                .expect("The Steam api returned bad data")
-        })
-        .collect();
+        .map(|friend| friend.steamid.parse::<u64>())
+        .collect::<Result<Vec<u64>, ParseIntError>>()?;
     ids.push(my_steamid);
     let user_summaries =
         client::get_user_summaries(client::GetUserSummariesRequest { ids }).await?;
@@ -73,12 +68,12 @@ pub async fn resolve_usernames(
                 .find(|user| {
                     user.personaname.to_ascii_lowercase() == *username.to_ascii_lowercase()
                 })
-                .expect("supplied user was not in list")
-                .steamid
-                .parse::<u64>()
-                .expect("logic error occured in steamapi or I had bad assumptions")
+                .ok_or(Error::User("supplied user not in list".to_string()))
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, Error>>()?
+        .iter()
+        .map(|user| user.steamid.parse::<u64>())
+        .collect::<Result<Vec<_>, ParseIntError>>()?;
     Ok(steamids)
 }
 
@@ -127,19 +122,29 @@ pub async fn find_friends_who_own_game(
 
 #[derive(Debug)]
 pub enum Error {
-    ClientError(client::Error),
+    Client(client::Error),
+    Parse(ParseIntError),
+    User(String),
 }
 
 impl From<client::Error> for Error {
     fn from(value: client::Error) -> Self {
-        Error::ClientError(value)
+        Error::Client(value)
+    }
+}
+
+impl From<ParseIntError> for Error {
+    fn from(value: ParseIntError) -> Self {
+        Error::Parse(value)
     }
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::ClientError(value) => write!(f, "ClientError: {}", value),
+            Error::Client(value) => write!(f, "ClientError: {}", value),
+            Error::Parse(value) => write!(f, "ParseError: {}", value),
+            Error::User(value) => write!(f, "UserError: {}", value),
         }
     }
 }
