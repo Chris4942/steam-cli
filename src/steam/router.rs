@@ -36,7 +36,7 @@ pub async fn run_command<'a>(
         .value_parser(value_parser!(u64));
 
     let matches = command!()
-        .version("0.1.10")
+        .version("0.1.11")
         .author("Chris West")
         .about("Some utility functions to run against steam")
         .arg_required_else_help(true)
@@ -124,8 +124,8 @@ async fn run_subcommand<'a>(
                 service::resolve_usernames(steam_id_strings, user_steam_id).await?
             } else {
                 partially_ingested_steam_ids
-                    .map(|id| id.parse::<u64>().expect("ids should be valid steam ids"))
-                    .collect::<Vec<_>>()
+                    .map(|id| id.parse::<u64>())
+                    .collect::<Result<Vec<_>, ParseIntError>>()?
             };
 
             Ok(compute_sorted_games_string(
@@ -163,8 +163,8 @@ async fn run_subcommand<'a>(
                 (
                     focus_steam_id.parse::<u64>()?,
                     partially_ingested_steam_ids
-                        .map(|id| id.parse::<u64>().expect("ids should be valid steam ids"))
-                        .collect::<Vec<_>>(),
+                        .map(|id| id.parse::<u64>())
+                        .collect::<Result<Vec<_>, ParseIntError>>()?,
                 )
             };
             let games = service::games_missing_from_group(focus_steam_id, other_steam_ids).await?;
@@ -191,8 +191,8 @@ async fn run_subcommand<'a>(
             let summaries = client::get_user_summaries(GetUserSummariesRequest {
                 ids: friends
                     .iter()
-                    .map(|friend| friend.steamid.parse::<u64>().expect("parsing u64 failed"))
-                    .collect::<Vec<u64>>(),
+                    .map(|friend| friend.steamid.parse::<u64>())
+                    .collect::<Result<Vec<u64>, ParseIntError>>()?,
             })
             .await?;
             Ok(format!(
