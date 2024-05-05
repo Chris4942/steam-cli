@@ -36,7 +36,7 @@ pub async fn run_command<'a>(
         .value_parser(value_parser!(u64));
 
     let matches = command!()
-        .version("0.1.13")
+        .version("0.1.14")
         .author("Chris West")
         .about("Some utility functions to run against steam")
         .arg_required_else_help(true)
@@ -233,7 +233,7 @@ async fn run_subcommand<'a>(
 
             Ok(format!(
                 "{}\nTotal: {}",
-                serde_json::to_string_pretty(&friends_list).unwrap(),
+                serde_json::to_string_pretty(&friends_list)?,
                 friends_list.len()
             ))
         }

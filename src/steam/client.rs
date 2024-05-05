@@ -32,7 +32,15 @@ pub async fn get_owned_games(request: GetUserDetailsRequest) -> Result<Vec<Game>
 
     let client = reqwest::Client::new();
     let response = backoff::future::retry(ExponentialBackoff::default(), || async {
-        let response = client.get(url_slice).query(&params).send().await.unwrap();
+        let response = match client.get(url_slice).query(&params).send().await {
+            Ok(res) => res,
+            Err(_) => {
+                return Err(backoff::Error::Transient {
+                    err: 0,
+                    retry_after: None,
+                })
+            }
+        };
         if response.status().is_success() {
             return Ok(response);
         }
@@ -45,8 +53,7 @@ pub async fn get_owned_games(request: GetUserDetailsRequest) -> Result<Vec<Game>
         }
         Err(backoff::Error::Permanent(response.status().as_u16()))
     })
-    .await
-    .unwrap();
+    .await?;
 
     if response.status().is_success() {
         let body = response.text().await?;
@@ -235,6 +242,12 @@ impl From<reqwest::Error> for Error {
 impl From<VarError> for Error {
     fn from(value: VarError) -> Self {
         Self::MissingApiKey(value)
+    }
+}
+
+impl From<u16> for Error {
+    fn from(value: u16) -> Self {
+        Error::HttpStatus(value)
     }
 }
 
