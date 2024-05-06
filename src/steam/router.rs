@@ -36,7 +36,7 @@ pub async fn run_command<'a>(
         .value_parser(value_parser!(u64));
 
     let matches = command!()
-        .version("0.1.15")
+        .version("0.1.16")
         .author("Chris West")
         .about("Some utility functions to run against steam")
         .arg_required_else_help(true)
@@ -246,6 +246,7 @@ pub enum Error<'a> {
     Argument(&'a str),
     Parse(String),
     Execution(String),
+    CommandNotFound(ClapError),
 }
 
 impl<'a> From<client::Error> for Error<'a> {
@@ -268,7 +269,7 @@ impl<'a> From<serde_json::Error> for Error<'a> {
 
 impl<'a> From<ClapError> for Error<'a> {
     fn from(value: ClapError) -> Self {
-        Error::Execution(value.to_string())
+        Error::CommandNotFound(value)
     }
 }
 
@@ -278,6 +279,11 @@ impl<'a> Display for Error<'a> {
             Error::Argument(str) => write!(f, "ArgumentError: {}", str),
             Error::Parse(str) => write!(f, "ParseError: {}", str),
             Error::Execution(str) => write!(f, "ExecutionError: {}", str),
+            Error::CommandNotFound(str) => write!(
+                f,
+                "Command Not Found. See message below for more details:\n{}",
+                str
+            ),
         }
     }
 }
