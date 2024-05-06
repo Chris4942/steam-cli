@@ -36,7 +36,7 @@ pub async fn run_command<'a>(
         .value_parser(value_parser!(u64));
 
     let matches = command!()
-        .version("0.1.16")
+        .version(env!("CARGO_PKG_VERSION"))
         .author("Chris West")
         .about("Some utility functions to run against steam")
         .arg_required_else_help(true)
@@ -279,11 +279,7 @@ impl<'a> Display for Error<'a> {
             Error::Argument(str) => write!(f, "ArgumentError: {}", str),
             Error::Parse(str) => write!(f, "ParseError: {}", str),
             Error::Execution(str) => write!(f, "ExecutionError: {}", str),
-            Error::CommandNotFound(str) => write!(
-                f,
-                "Command Not Found. See message below for more details:\n{}",
-                str
-            ),
+            Error::CommandNotFound(str) => write!(f, "{}", str),
         }
     }
 }
