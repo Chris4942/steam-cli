@@ -89,7 +89,7 @@ impl<'a> Display for Error<'a> {
         match &self {
             Error::EnvVarMissing(err) => write!(f, "EnvVarMissing: {}", err),
             Error::Parse(err) => write!(f, "Parse: {}", err),
-            Error::Execution(err) => write!(f, "Execution Error:\n{}", err),
+            Error::Execution(err) => write!(f, "{}", err),
         }
     }
 }
