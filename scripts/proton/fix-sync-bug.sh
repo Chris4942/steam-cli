@@ -8,12 +8,11 @@
 # /home/deck/.local/share/Steam/steamapps/compatdata/976730
 # At least that's what it is on my steam deck
 # So if the zip is called windows-dlls.zip in your downloads folder, you would run:
-# ./fix-sync-bug.sh ~/Downloads/windows-dlls.zip /home/deck/.local/share/Steam/steamapps/compatdata/976730
+# ./scripts/proton/fix-sync-bug.sh scripts/proton/dlls.zip /home/deck/.local/share/Steam/steamapps/compatdata/976730
 
-if [ "$#" -lt 2 ]
-then
-    echo "two arguments required"
-    exit 1
+if [ "$#" -lt 2 ]; then
+	echo "two arguments required"
+	exit 1
 fi
 
 ZIP=$1
