@@ -28,7 +28,7 @@ pub async fn run_command<'a>(
         .alias("s")
         .action(clap::ArgAction::SetTrue);
     let fuzzy_flag = Arg::new("fuzzy")
-        .help(format!("must be used with --by-name (-b). Uses fuzzy matching. Can optionally a match threshold that defaults to {FUZZY_THRESHOLD}"))
+        .help("Use fuzzy matching. Must be used with --by-name (-b).")
         .long("fuzzy")
         .short('f')
         .action(clap::ArgAction::SetTrue);
@@ -137,7 +137,7 @@ async fn run_subcommand<'a>(
                     )
                     .await?
                 } else {
-                    service::resolve_usernames(steam_id_strings, user_steam_id).await?
+                    service::resolve_usernames_strictly(steam_id_strings, user_steam_id).await?
                 }
             } else {
                 partially_ingested_steam_ids
@@ -165,7 +165,7 @@ async fn run_subcommand<'a>(
                     "user_steam_id must be a valid u64 if trying to resolve by-name",
                 ))?;
                 let resolved_steam_ids =
-                    service::resolve_usernames(persona_names, user_steam_id).await?;
+                    service::resolve_usernames_strictly(persona_names, user_steam_id).await?;
                 (
                     resolved_steam_ids
                         .last()

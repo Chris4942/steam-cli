@@ -47,7 +47,7 @@ pub async fn games_missing_from_group(
     Ok(games_in_common_minus_focus)
 }
 
-pub async fn resolve_usernames(
+pub async fn resolve_usernames_strictly(
     usernames: impl Iterator<Item = &str>,
     my_steamid: u64,
 ) -> Result<Vec<u64>, Error> {
