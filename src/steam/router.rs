@@ -61,9 +61,11 @@ pub async fn run_command<'a>(
             .about("find the games owned by everyone in the group except for the focused steam account")
             .alias("gmig")
             .arg(by_name_flag.clone())
+            .arg(fuzzy_flag.clone())
             .arg(
                 Arg::new("focus_steam_id")
                     .help("id associated with the focus steam account")
+                    .num_args(1)
                     .value_parser(value_parser!(String))
             )
             .arg(steam_ids_arg.clone())
@@ -120,70 +122,18 @@ async fn run_subcommand<'a>(
 ) -> Result<String, Error<'a>> {
     match matches.subcommand() {
         Some(("games-in-common", arguments)) => {
-            let partially_ingested_steam_ids = arguments
-                .get_many::<String>("steam_ids")
-                .into_iter()
-                .flatten();
-            let steam_ids = if arguments.get_flag("by-name") {
-                let user_steam_id = user_steam_id.ok_or(Error::Argument(
-                    "user_steam_id is required in order to resolve user_steam_ids by persona name",
-                ))?;
-                let steam_id_strings = partially_ingested_steam_ids.map(|s| s.trim());
-                if arguments.get_flag("fuzzy") {
-                    service::resolve_usernames_fuzzily(
-                        steam_id_strings,
-                        user_steam_id,
-                        FUZZY_THRESHOLD,
-                    )
-                    .await?
-                } else {
-                    service::resolve_usernames_strictly(steam_id_strings, user_steam_id).await?
-                }
-            } else {
-                partially_ingested_steam_ids
-                    .map(|id| id.parse::<u64>())
-                    .collect::<Result<Vec<_>, ParseIntError>>()?
-            };
-
+            let steam_ids = get_steam_ids(arguments, user_steam_id, "steam_ids").await?;
             Ok(compute_sorted_games_string(
                 &service::find_games_in_common(steam_ids).await?,
             ))
         }
         Some(("games-missing-from-group", arguments)) => {
-            let focus_steam_id = arguments
-                .get_one::<String>("focus_steam_id")
-                .ok_or(Error::Argument("1 arg required"))?;
-            let partially_ingested_steam_ids = arguments
-                .get_many::<String>("steam_ids")
-                .into_iter()
-                .flatten();
-            let (focus_steam_id, other_steam_ids) = if arguments.get_flag("by-name") {
-                let persona_names = partially_ingested_steam_ids
-                    .map(|s| s.trim())
-                    .chain(iter::once(focus_steam_id.trim()));
-                let user_steam_id = user_steam_id.ok_or(Error::Argument(
-                    "user_steam_id must be a valid u64 if trying to resolve by-name",
-                ))?;
-                let resolved_steam_ids =
-                    service::resolve_usernames_strictly(persona_names, user_steam_id).await?;
-                (
-                    resolved_steam_ids
-                        .last()
-                        .ok_or(Error::Execution(
-                            "resolved steam ids list empty. This was probably user error."
-                                .to_string(),
-                        ))?
-                        .to_owned(),
-                    resolved_steam_ids[..resolved_steam_ids.len() - 1].to_vec(),
-                )
-            } else {
-                (
-                    focus_steam_id.parse::<u64>()?,
-                    partially_ingested_steam_ids
-                        .map(|id| id.parse::<u64>())
-                        .collect::<Result<Vec<_>, ParseIntError>>()?,
-                )
-            };
+            let focus_steam_id = get_steam_ids(arguments, user_steam_id, "focus_steam_id")
+                .await?
+                .first()
+                .ok_or(Error::Argument("could not find focus_steam_id"))?
+                .to_owned();
+            let other_steam_ids = get_steam_ids(arguments, user_steam_id, "steam_ids").await?;
             let games = service::games_missing_from_group(focus_steam_id, other_steam_ids).await?;
             Ok(compute_sorted_games_string(&games))
         }
@@ -305,4 +255,32 @@ impl<'a> From<ParseIntError> for Error<'a> {
     fn from(value: ParseIntError) -> Self {
         return Error::Parse(value.to_string());
     }
+}
+
+async fn get_steam_ids<'a>(
+    arguments: &ArgMatches,
+    user_steam_id: Option<u64>,
+    steam_ids_key: &str,
+) -> Result<Vec<u64>, Error<'a>> {
+    let partially_ingested_steam_ids = arguments
+        .get_many::<String>(steam_ids_key)
+        .into_iter()
+        .flatten();
+    let steam_ids = if arguments.get_flag("by-name") {
+        let user_steam_id = user_steam_id.ok_or(Error::Argument(
+            "user_steam_id is required in order to resolve user_steam_ids by persona name",
+        ))?;
+        let steam_id_strings = partially_ingested_steam_ids.map(|s| s.trim());
+        if arguments.get_flag("fuzzy") {
+            service::resolve_usernames_fuzzily(steam_id_strings, user_steam_id, FUZZY_THRESHOLD)
+                .await?
+        } else {
+            service::resolve_usernames_strictly(steam_id_strings, user_steam_id).await?
+        }
+    } else {
+        partially_ingested_steam_ids
+            .map(|id| id.parse::<u64>())
+            .collect::<Result<Vec<_>, ParseIntError>>()?
+    };
+    Ok(steam_ids)
 }
