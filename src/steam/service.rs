@@ -1,6 +1,6 @@
 use super::client::{self, GetUserSummariesRequest, UserSummary};
 use futures::{future::join_all, join};
-use std::{borrow::Borrow, cmp::Ordering, collections::HashSet, fmt::Display, num::ParseIntError};
+use std::{collections::HashSet, fmt::Display, num::ParseIntError};
 
 use super::models::Game;
 
