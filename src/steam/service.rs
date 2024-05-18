@@ -1,6 +1,6 @@
-use super::client::{self, GetUserSummariesRequest};
+use super::client::{self, GetUserSummariesRequest, UserSummary};
 use futures::{future::join_all, join};
-use std::{collections::HashSet, fmt::Display, num::ParseIntError};
+use std::{borrow::Borrow, collections::HashSet, fmt::Display, num::ParseIntError};
 
 use super::models::Game;
 
@@ -82,6 +82,23 @@ pub async fn resolve_usernames_fuzzily(
     my_steamid: u64,
     threshold: f64,
 ) -> Result<Vec<u64>, Error> {
+    resolve_username_with_mapping_function(usernames, my_steamid, |username, user_summaries| {
+        user_summaries
+            .iter()
+            .find(|user| user.personaname.to_ascii_uppercase() == *username.to_ascii_lowercase())
+            .ok_or(Error::User("supplied user not in list".to_string()))
+    })
+    .await
+}
+
+pub async fn resolve_username_with_mapping_function<F>(
+    usernames: impl Iterator<Item = &str>,
+    my_steamid: u64,
+    mapping_function: F,
+) -> Result<Vec<u64>, Error>
+where
+    F: for<'a> Fn(&str, &'a Vec<client::UserSummary>) -> Result<&'a UserSummary, Error>,
+{
     let friends =
         client::get_user_friends_list(client::GetUserDetailsRequest { id: my_steamid }).await?;
     println!("got friends");
@@ -92,19 +109,12 @@ pub async fn resolve_usernames_fuzzily(
     ids.push(my_steamid);
     let user_summaries =
         client::get_user_summaries(client::GetUserSummariesRequest { ids }).await?;
-    let steamids = usernames
-        .map(|username| {
-            user_summaries
-                .iter()
-                .find(|user| {
-                    user.personaname.to_ascii_lowercase() == *username.to_ascii_lowercase()
-                })
-                .ok_or(Error::User("supplied user not in list".to_string()))
-        })
+    let steamids: Vec<u64> = usernames
+        .map(|username| mapping_function(username, &user_summaries))
         .collect::<Result<Vec<_>, Error>>()?
         .iter()
         .map(|user| user.steamid.parse::<u64>())
-        .collect::<Result<Vec<_>, ParseIntError>>()?;
+        .collect::<Result<Vec<u64>, ParseIntError>>()?;
     Ok(steamids)
 }
 
