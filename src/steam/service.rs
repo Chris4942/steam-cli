@@ -1,4 +1,4 @@
-use super::client::{self, GetUserSummariesRequest};
+use super::client::{self, GetUserSummariesRequest, UserSummary};
 use futures::{future::join_all, join};
 use std::{collections::HashSet, fmt::Display, num::ParseIntError};
 
@@ -47,10 +47,66 @@ pub async fn games_missing_from_group(
     Ok(games_in_common_minus_focus)
 }
 
-pub async fn resolve_usernames(
+pub async fn resolve_usernames_strictly(
     usernames: impl Iterator<Item = &str>,
     my_steamid: u64,
 ) -> Result<Vec<u64>, Error> {
+    resolve_username_with_mapping_function(usernames, my_steamid, |username, user_summaries| {
+        user_summaries
+            .iter()
+            .find(|user| user.personaname.to_ascii_lowercase() == *username.to_ascii_lowercase())
+            .ok_or(Error::User("supplied user not in list".to_string()))
+    })
+    .await
+}
+
+pub async fn resolve_usernames_fuzzily(
+    usernames: impl Iterator<Item = &str>,
+    my_steamid: u64,
+    threshold: u32,
+) -> Result<Vec<u64>, Error> {
+    resolve_username_with_mapping_function(usernames, my_steamid, |username, user_summaries| {
+        let usernames = user_summaries
+            .iter()
+            .map(|summary| &summary.personaname)
+            .collect::<Vec<_>>();
+        let matches = nucleo_matcher::pattern::Pattern::parse(
+            username,
+            nucleo_matcher::pattern::CaseMatching::Ignore,
+            nucleo_matcher::pattern::Normalization::Smart,
+        )
+        .match_list_with_index(
+            usernames.clone(),
+            &mut nucleo_matcher::Matcher::new(nucleo_matcher::Config::DEFAULT),
+        );
+
+        if matches.is_empty() {
+            return Err(Error::User(format!(
+                "no matches found for username: {username}"
+            )));
+        }
+
+        let (_, score, index) = matches[0];
+
+        if score < threshold {
+            return Err(Error::User(format!(
+                "No matches found that were higher than threshold {threshold}"
+            )));
+        }
+
+        Ok(&user_summaries[index])
+    })
+    .await
+}
+
+pub async fn resolve_username_with_mapping_function<F>(
+    usernames: impl Iterator<Item = &str>,
+    my_steamid: u64,
+    mapping_function: F,
+) -> Result<Vec<u64>, Error>
+where
+    F: for<'a> Fn(&str, &'a Vec<client::UserSummary>) -> Result<&'a UserSummary, Error>,
+{
     let friends =
         client::get_user_friends_list(client::GetUserDetailsRequest { id: my_steamid }).await?;
     println!("got friends");
@@ -61,19 +117,12 @@ pub async fn resolve_usernames(
     ids.push(my_steamid);
     let user_summaries =
         client::get_user_summaries(client::GetUserSummariesRequest { ids }).await?;
-    let steamids = usernames
-        .map(|username| {
-            user_summaries
-                .iter()
-                .find(|user| {
-                    user.personaname.to_ascii_lowercase() == *username.to_ascii_lowercase()
-                })
-                .ok_or(Error::User("supplied user not in list".to_string()))
-        })
+    let steamids: Vec<u64> = usernames
+        .map(|username| mapping_function(username, &user_summaries))
         .collect::<Result<Vec<_>, Error>>()?
         .iter()
         .map(|user| user.steamid.parse::<u64>())
-        .collect::<Result<Vec<_>, ParseIntError>>()?;
+        .collect::<Result<Vec<u64>, ParseIntError>>()?;
     Ok(steamids)
 }
 

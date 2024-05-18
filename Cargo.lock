@@ -1022,6 +1022,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nucleo-matcher"
+version = "0.3.1"
+source = "git+https://github.com/Chris4942/nucleo?branch=cwest/add-match-list-indexed#93d182afe627fba7af5196eaceac19580c7cc1af"
+dependencies = [
+ "memchr",
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "num-conv"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1675,6 +1684,7 @@ dependencies = [
  "backoff",
  "clap",
  "futures",
+ "nucleo-matcher",
  "reqwest 0.12.4",
  "serde",
  "serde_json",
@@ -2079,6 +2089,12 @@ checksum = "a56d1686db2308d901306f92a263857ef59ea39678a5458e7cb17f01415101f5"
 dependencies = [
  "tinyvec",
 ]
+
+[[package]]
+name = "unicode-segmentation"
+version = "1.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4c87d22b6e3f4a18d4d40ef354e97c90fcb14dd91d7dc0aa9d8a1172ebf7202"
 
 [[package]]
 name = "untrusted"
