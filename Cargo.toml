@@ -18,6 +18,7 @@ edition = "2021"
 backoff = { version = "0.4.0", features = ["tokio"] }
 clap = { version = "4.5.4", features = ["derive", "cargo"] }
 futures = "0.3.30"
+nucleo-matcher = { git = "https://github.com/helix-editor/nucleo", version = "0.3.1" }
 reqwest = "0.12.4"
 serde = { version = "1.0.200", features = ["derive"] }
 serde_json = "1.0.116"
