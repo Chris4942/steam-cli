@@ -77,6 +77,37 @@ pub async fn resolve_usernames(
     Ok(steamids)
 }
 
+pub async fn resolve_usernames_fuzzily(
+    usernames: impl Iterator<Item = &str>,
+    my_steamid: u64,
+    threshold: f64,
+) -> Result<Vec<u64>, Error> {
+    let friends =
+        client::get_user_friends_list(client::GetUserDetailsRequest { id: my_steamid }).await?;
+    println!("got friends");
+    let mut ids: Vec<u64> = friends
+        .iter()
+        .map(|friend| friend.steamid.parse::<u64>())
+        .collect::<Result<Vec<u64>, ParseIntError>>()?;
+    ids.push(my_steamid);
+    let user_summaries =
+        client::get_user_summaries(client::GetUserSummariesRequest { ids }).await?;
+    let steamids = usernames
+        .map(|username| {
+            user_summaries
+                .iter()
+                .find(|user| {
+                    user.personaname.to_ascii_lowercase() == *username.to_ascii_lowercase()
+                })
+                .ok_or(Error::User("supplied user not in list".to_string()))
+        })
+        .collect::<Result<Vec<_>, Error>>()?
+        .iter()
+        .map(|user| user.steamid.parse::<u64>())
+        .collect::<Result<Vec<_>, ParseIntError>>()?;
+    Ok(steamids)
+}
+
 pub async fn find_friends_who_own_game(
     appid: &u64,
     my_steamid: u64,

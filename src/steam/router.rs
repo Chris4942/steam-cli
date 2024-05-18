@@ -9,6 +9,8 @@ use crate::steam::{
 
 use super::{client, service};
 
+const FUZZY_THRESHOLD: f64 = 0.8;
+
 pub async fn run_command<'a>(
     args: vec::IntoIter<String>,
     user_id: Option<u64>,
@@ -24,6 +26,11 @@ pub async fn run_command<'a>(
         .long("self")
         .short('s')
         .alias("s")
+        .action(clap::ArgAction::SetTrue);
+    let fuzzy_flag = Arg::new("fuzzy")
+        .help(format!("must be used with --by-name (-b). Uses fuzzy matching. Can optionally a match threshold that defaults to {FUZZY_THRESHOLD}"))
+        .long("fuzzy")
+        .short('f')
         .action(clap::ArgAction::SetTrue);
     let steam_ids_arg = Arg::new("steam_ids")
         .help("id(s) assoicated with steam account(s), e.g., for accounts 42 and 7: steam-cli gic 7 42")
@@ -45,6 +52,7 @@ pub async fn run_command<'a>(
                 .about("find the intersection of games owned by provided steam accounts")
                 .alias("gic")
                 .arg(by_name_flag.clone())
+                .arg(fuzzy_flag.clone())
                 .arg(steam_ids_arg.clone())
                 .arg_required_else_help(true),
         )
@@ -121,7 +129,16 @@ async fn run_subcommand<'a>(
                     "user_steam_id is required in order to resolve user_steam_ids by persona name",
                 ))?;
                 let steam_id_strings = partially_ingested_steam_ids.map(|s| s.trim());
-                service::resolve_usernames(steam_id_strings, user_steam_id).await?
+                if arguments.get_flag("fuzzy") {
+                    service::resolve_usernames(steam_id_strings, user_steam_id).await?
+                } else {
+                    service::resolve_usernames_fuzzily(
+                        steam_id_strings,
+                        user_steam_id,
+                        FUZZY_THRESHOLD,
+                    )
+                    .await?
+                }
             } else {
                 partially_ingested_steam_ids
                     .map(|id| id.parse::<u64>())
