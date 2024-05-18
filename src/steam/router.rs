@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt::Display, iter, num::ParseIntError, vec};
+use std::{collections::HashSet, fmt::Display, iter, num::ParseIntError, usize, vec};
 
 use clap::{command, value_parser, Arg, ArgMatches, Command, Error as ClapError};
 
@@ -9,7 +9,7 @@ use crate::steam::{
 
 use super::{client, service};
 
-const FUZZY_THRESHOLD: f64 = 0.8;
+const FUZZY_THRESHOLD: u32 = 50;
 
 pub async fn run_command<'a>(
     args: vec::IntoIter<String>,
@@ -130,14 +130,14 @@ async fn run_subcommand<'a>(
                 ))?;
                 let steam_id_strings = partially_ingested_steam_ids.map(|s| s.trim());
                 if arguments.get_flag("fuzzy") {
-                    service::resolve_usernames(steam_id_strings, user_steam_id).await?
-                } else {
                     service::resolve_usernames_fuzzily(
                         steam_id_strings,
                         user_steam_id,
                         FUZZY_THRESHOLD,
                     )
                     .await?
+                } else {
+                    service::resolve_usernames(steam_id_strings, user_steam_id).await?
                 }
             } else {
                 partially_ingested_steam_ids
