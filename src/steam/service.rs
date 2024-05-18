@@ -75,28 +75,26 @@ pub async fn resolve_usernames_fuzzily(
             nucleo_matcher::pattern::CaseMatching::Ignore,
             nucleo_matcher::pattern::Normalization::Smart,
         )
-        .match_list(
+        .match_list_with_index(
             usernames.clone(),
             &mut nucleo_matcher::Matcher::new(nucleo_matcher::Config::DEFAULT),
         );
-        let tuple = matches
-            .iter()
-            .enumerate()
-            .inspect(|&v| {
-                println!(
-                    "comparing {username} to {u:?} got score {score}",
-                    u = v.1 .0,
-                    score = v.1 .1
-                )
-            })
-            .max_by(|(_, a), (_, b)| a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal))
-            .ok_or(Error::User(format!("Could not match username {username}")))?;
-        if tuple.1 .1 < threshold {
+
+        if matches.is_empty() {
+            return Err(Error::User(format!(
+                "no matches found for username: {username}"
+            )));
+        }
+
+        let (_, score, index) = matches[0];
+
+        if score < threshold {
             return Err(Error::User(format!(
                 "No matches found that were higher than threshold {threshold}"
             )));
         }
-        Ok(&user_summaries[tuple.0])
+
+        Ok(&user_summaries[index])
     })
     .await
 }
