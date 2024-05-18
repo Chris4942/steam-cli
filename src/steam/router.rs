@@ -84,9 +84,11 @@ pub async fn run_command<'a>(
         )
         .subcommand(
             Command::new("get-player-summary")
-            .about("get user summary data")
+            .about("get user summary data.")
             .long_about("get user summary data. Much more data is provided by the steam api than what is exposed by this command. Feel free to submit a PR to update this is you want more")
-            .arg(steam_id_arg.clone())
+            .arg(by_name_flag.clone())
+            .arg(fuzzy_flag.clone())
+            .arg(steam_ids_arg.clone())
             .arg(self_flag.clone())
             .arg_required_else_help(true)
         )
@@ -168,21 +170,7 @@ async fn run_subcommand<'a>(
             ))
         }
         Some(("get-player-summary", arguments)) => {
-            let steam_ids_iter = arguments
-                .get_many::<u64>("steamid")
-                .into_iter()
-                .flatten()
-                .map(|i| i.to_owned());
-            let steamids = if arguments.get_flag("self") {
-                let user_steam_id = user_steam_id.ok_or(Error::Argument(
-                    "user_steam_id is required in order use self flag",
-                ))?;
-                steam_ids_iter
-                    .chain(iter::once(user_steam_id))
-                    .collect::<Vec<_>>()
-            } else {
-                steam_ids_iter.collect::<Vec<_>>()
-            };
+            let steamids = get_steam_ids(arguments, user_steam_id, "steam_ids").await?;
             let friends_list =
                 client::get_user_summaries(GetUserSummariesRequest { ids: steamids }).await?;
             Ok(serde_json::to_string_pretty(&friends_list)?)
