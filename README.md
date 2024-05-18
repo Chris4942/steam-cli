@@ -1,4 +1,11 @@
+The `steam-cli` is a tool that I built
+1. to interact with the steam-api and answer questions such as, I'm playing games with a group of friends. What games do we all own?
+2. to learn Rust, so I if I'm not following best practices, feel free to point them out or submit a PR
+
 # Usage
+
+The `steam-cli` primarily runs as a cli in the terminal, but it can also run as a discord bot.
+The instructions below are for running it in the terminal.
 
 ## Environment Variables
 
