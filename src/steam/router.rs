@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt::Display, iter, num::ParseIntError, vec};
+use std::{collections::HashSet, fmt::Display, num::ParseIntError, vec};
 
 use clap::{command, value_parser, Arg, ArgMatches, Command, Error as ClapError};
 
