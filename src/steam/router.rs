@@ -22,7 +22,7 @@ pub async fn run_command<'a>(
         .alias("s")
         .action(clap::ArgAction::SetTrue);
     let strict_matching_flag = Arg::new("strict")
-        .help("Use strict string matching against personaname or realname")
+        .help("Use strict string matching against personaname")
         .long("strict")
         .short('s')
         .action(clap::ArgAction::SetTrue);
