@@ -181,7 +181,7 @@ pub struct GetUserSummariesRequest {
 pub struct UserSummary {
     pub steamid: String,
     pub personaname: String,
-    realname: Option<String>,
+    pub realname: Option<String>,
 }
 
 #[derive(Debug)]
