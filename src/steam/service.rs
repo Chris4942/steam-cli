@@ -65,6 +65,8 @@ pub async fn resolve_usernames_fuzzily(
     my_steamid: u64,
     threshold: u32,
 ) -> Result<Vec<u64>, Error> {
+    // TODO: this involves a lot of unnecessaries recomputations around user_summaries that should
+    // be removed
     resolve_username_with_mapping_function(usernames, my_steamid, |username, user_summaries| {
         let usernames = user_summaries
             .iter()
@@ -80,21 +82,46 @@ pub async fn resolve_usernames_fuzzily(
             &mut nucleo_matcher::Matcher::new(nucleo_matcher::Config::DEFAULT),
         );
 
-        if matches.is_empty() {
-            return Err(Error::User(format!(
-                "no matches found for username: {username}"
-            )));
+        if !matches.is_empty() {
+            let (_, score, index) = matches[0];
+
+            if score > threshold {
+                return Ok(&user_summaries[index]);
+            }
         }
 
-        let (_, score, index) = matches[0];
+        let realnames_indexed = user_summaries
+            .iter()
+            .enumerate()
+            .filter_map(|(index, summary)| {
+                summary.realname.as_ref().map(|realname| (index, realname))
+            })
+            .collect::<Vec<_>>();
 
-        if score < threshold {
-            return Err(Error::User(format!(
-                "No matches found that were higher than threshold {threshold}"
-            )));
+        let realnames = realnames_indexed
+            .iter()
+            .map(|(_, realname)| realname)
+            .collect::<Vec<_>>();
+
+        let matches = nucleo_matcher::pattern::Pattern::parse(
+            username,
+            nucleo_matcher::pattern::CaseMatching::Ignore,
+            nucleo_matcher::pattern::Normalization::Smart,
+        )
+        .match_list_with_index(
+            realnames,
+            &mut nucleo_matcher::Matcher::new(nucleo_matcher::Config::DEFAULT),
+        );
+
+        if !matches.is_empty() {
+            let (_, score, index) = matches[0];
+
+            if score > threshold {
+                return Ok(&user_summaries[realnames_indexed[index].0]);
+            }
         }
 
-        Ok(&user_summaries[index])
+        Err(Error::User(format!("Could not match {username}")))
     })
     .await
 }
