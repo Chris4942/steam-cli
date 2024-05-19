@@ -38,7 +38,7 @@ async fn get_steam_cli_response<'a>(_ctx: &Context, msg: &Message) -> String {
     }
 }
 
-async fn execute_steam_command<'a>(args: Vec<String>) -> Result<String, Error<'a>> {
+async fn execute_steam_command<'a>(args: Vec<String>) -> Result<String, Error> {
     Ok(router::run_command(
         args.into_iter(),
         Some(env::var("USER_STEAM_ID")?.parse::<u64>()?),
@@ -78,13 +78,13 @@ async fn main() {
     }
 }
 
-enum Error<'a> {
+enum Error {
     EnvVarMissing(VarError),
     Parse(ParseIntError),
-    Execution(router::Error<'a>),
+    Execution(router::Error),
 }
 
-impl<'a> Display for Error<'a> {
+impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
             Error::EnvVarMissing(err) => write!(f, "EnvVarMissing: {}", err),
@@ -94,20 +94,20 @@ impl<'a> Display for Error<'a> {
     }
 }
 
-impl<'a> From<VarError> for Error<'a> {
+impl From<VarError> for Error {
     fn from(value: VarError) -> Self {
         Error::EnvVarMissing(value)
     }
 }
 
-impl<'a> From<ParseIntError> for Error<'a> {
+impl From<ParseIntError> for Error {
     fn from(value: ParseIntError) -> Self {
         Error::Parse(value)
     }
 }
 
-impl<'a> From<router::Error<'a>> for Error<'a> {
-    fn from(value: router::Error<'a>) -> Self {
+impl From<router::Error> for Error {
+    fn from(value: router::Error) -> Self {
         Error::Execution(value)
     }
 }
