@@ -76,8 +76,6 @@ pub async fn get_owned_games(request: GetUserDetailsRequest) -> Result<Vec<Game>
 }
 
 pub async fn get_available_endpoints() -> Result<GetAvailableEndpointsResponse, Error> {
-    eprintln!("getting available endoints...");
-
     let params = [("key", env::var("STEAM_API_KEY")?)];
 
     let url = format!(

@@ -14,7 +14,7 @@ const FUZZY_THRESHOLD: u32 = 50;
 pub async fn run_command<'a>(
     args: vec::IntoIter<String>,
     user_id: Option<u64>,
-) -> Result<String, Error<'a>> {
+) -> Result<String, Error> {
     let by_name_flag = Arg::new("by-name")
         .help("if present, then steam ids will be interpretted as persona names and resolves against your steam account and your friends steam accounts. This will not work if your friends list contains duplicate persona names")
         .long("by-name")
@@ -121,7 +121,7 @@ fn compute_sorted_games_string(games: &HashSet<Game>) -> String {
 async fn run_subcommand<'a>(
     matches: ArgMatches,
     user_steam_id: Option<u64>,
-) -> Result<String, Error<'a>> {
+) -> Result<String, Error> {
     match matches.subcommand() {
         Some(("games-in-common", arguments)) => {
             let steam_ids = get_steam_ids(arguments, user_steam_id, "steam_ids").await?;
@@ -133,7 +133,7 @@ async fn run_subcommand<'a>(
             let focus_steam_id = get_steam_ids(arguments, user_steam_id, "focus_steam_id")
                 .await?
                 .first()
-                .ok_or(Error::Argument("could not find focus_steam_id"))?
+                .ok_or(Error::Argument("could not find focus_steam_id".to_string()))?
                 .to_owned();
             let other_steam_ids = get_steam_ids(arguments, user_steam_id, "steam_ids").await?;
             let games = service::games_missing_from_group(focus_steam_id, other_steam_ids).await?;
@@ -147,12 +147,13 @@ async fn run_subcommand<'a>(
         Some(("get-user-friends-list", arguments)) => {
             let id = if arguments.get_flag("self") {
                 user_steam_id.ok_or(Error::Argument(
-                    "user_steam_id is required in order to resolve user_steam_ids by persona name",
+                    "user_steam_id is required in order to resolve user_steam_ids by persona name"
+                        .to_string(),
                 ))?
             } else {
                 arguments
                     .get_one::<u64>("steamid")
-                    .ok_or(Error::Argument("1 arg required"))?
+                    .ok_or(Error::Argument("1 arg required".to_string()))?
                     .to_owned()
             };
             let friends = client::get_user_friends_list(GetUserDetailsRequest { id }).await?;
@@ -178,10 +179,10 @@ async fn run_subcommand<'a>(
         Some(("friends-who-own-game", arguments)) => {
             let gameid = arguments
                 .get_one::<u64>("gameid")
-                .ok_or(Error::Argument("gameid must be a valid u64"))?;
+                .ok_or(Error::Argument("gameid must be a valid u64".to_string()))?;
 
             let user_steam_id = user_steam_id.ok_or(Error::Argument(
-                "user_steam_id must be set to run this command",
+                "user_steam_id must be set to run this command".to_string(),
             ))?;
 
             let friends_list = service::find_friends_who_own_game(gameid, user_steam_id).await?;
@@ -192,43 +193,43 @@ async fn run_subcommand<'a>(
                 friends_list.len()
             ))
         }
-        None => return Err(Error::Argument("thing")),
+        None => Err(Error::Argument("should be unreachable".to_string())),
         _ => unreachable!(),
     }
 }
 
-pub enum Error<'a> {
-    Argument(&'a str),
+pub enum Error {
+    Argument(String),
     Parse(String),
     Execution(String),
     CommandNotFound(ClapError),
 }
 
-impl<'a> From<client::Error> for Error<'a> {
+impl From<client::Error> for Error {
     fn from(value: client::Error) -> Self {
         Error::Execution(value.to_string())
     }
 }
 
-impl<'a> From<service::Error> for Error<'a> {
+impl From<service::Error> for Error {
     fn from(value: service::Error) -> Self {
         Error::Execution(value.to_string())
     }
 }
 
-impl<'a> From<serde_json::Error> for Error<'a> {
+impl From<serde_json::Error> for Error {
     fn from(value: serde_json::Error) -> Self {
         Error::Execution(value.to_string())
     }
 }
 
-impl<'a> From<ClapError> for Error<'a> {
+impl From<ClapError> for Error {
     fn from(value: ClapError) -> Self {
         Error::CommandNotFound(value)
     }
 }
 
-impl<'a> Display for Error<'a> {
+impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::Argument(str) => write!(f, "ArgumentError: {}", str),
@@ -239,9 +240,9 @@ impl<'a> Display for Error<'a> {
     }
 }
 
-impl<'a> From<ParseIntError> for Error<'a> {
+impl From<ParseIntError> for Error {
     fn from(value: ParseIntError) -> Self {
-        return Error::Parse(value.to_string());
+        Error::Parse(value.to_string())
     }
 }
 
@@ -249,14 +250,15 @@ async fn get_steam_ids<'a>(
     arguments: &ArgMatches,
     user_steam_id: Option<u64>,
     steam_ids_key: &str,
-) -> Result<Vec<u64>, Error<'a>> {
+) -> Result<Vec<u64>, Error> {
     let partially_ingested_steam_ids = arguments
         .get_many::<String>(steam_ids_key)
         .into_iter()
         .flatten();
     let steam_ids = if arguments.get_flag("by-name") {
         let user_steam_id = user_steam_id.ok_or(Error::Argument(
-            "user_steam_id is required in order to resolve user_steam_ids by persona name",
+            "user_steam_id is required in order to resolve user_steam_ids by persona name"
+                .to_string(),
         ))?;
         let steam_id_strings = partially_ingested_steam_ids.map(|s| s.trim());
         if arguments.get_flag("fuzzy") {

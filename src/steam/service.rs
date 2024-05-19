@@ -149,14 +149,13 @@ pub async fn find_friends_who_own_game(
     let friends_with_game_ids = player_owned_games
         .into_iter()
         .zip(steamids_iterator)
-        .filter(|(result, _)| match result {
-            Ok(_) => true,
+        .filter_map(|(result, steam_id)| match result {
+            Ok(v) => Some((v, steam_id)),
             Err(err) => {
                 eprintln!("filtering out result due to {:?}", err);
-                false
+                None
             }
         })
-        .map(|(ok_result, steamid)| (ok_result.expect("we just filtered by is_ok"), steamid))
         .filter(|(games, _)| games.iter().any(|game| &game.appid == appid))
         .map(|(_, steamid)| steamid)
         .collect::<Vec<u64>>();
