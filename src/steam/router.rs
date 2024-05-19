@@ -193,7 +193,7 @@ async fn run_subcommand<'a>(
                 friends_list.len()
             ))
         }
-        None => return Err(Error::Argument("thing".to_string())),
+        None => Err(Error::Argument("should be unreachable".to_string())),
         _ => unreachable!(),
     }
 }
