@@ -93,9 +93,8 @@ pub async fn resolve_usernames_fuzzily(
         let realnames_indexed = user_summaries
             .iter()
             .enumerate()
-            .filter_map(|(index, summary)| match &summary.realname {
-                Some(realname) => Some((index, realname)),
-                None => None,
+            .filter_map(|(index, summary)| {
+                summary.realname.as_ref().map(|realname| (index, realname))
             })
             .collect::<Vec<_>>();
 
