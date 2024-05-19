@@ -242,7 +242,7 @@ impl Display for Error {
 
 impl From<ParseIntError> for Error {
     fn from(value: ParseIntError) -> Self {
-        return Error::Parse(value.to_string());
+        Error::Parse(value.to_string())
     }
 }
 
