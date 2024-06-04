@@ -11,6 +11,18 @@ use super::{client, service};
 
 const FUZZY_THRESHOLD: u32 = 50;
 
+pub async fn route_arguments(
+    args: vec::IntoIter<String>,
+    user_id: Option<u64>,
+    write_stdout: impl Fn(String),
+    write_stderr: impl Fn(String),
+) {
+    match run_command(args, user_id).await {
+        Ok(str) => write_stdout(str),
+        Err(err) => write_stderr(err.to_string()),
+    }
+}
+
 pub async fn run_command<'a>(
     args: vec::IntoIter<String>,
     user_id: Option<u64>,

@@ -17,10 +17,12 @@ fn main() {
         Err(_) => None,
     };
     let rt = get_blocking_runtime();
-    match rt.block_on(router::run_command(args.into_iter(), user_steam_id)) {
-        Ok(s) => println!("{}", s),
-        Err(s) => eprintln!("{}", s),
-    }
+    rt.block_on(router::route_arguments(
+        args.into_iter(),
+        user_steam_id,
+        |output| println!("{}", output),
+        |output| eprintln!("{}", output),
+    ));
 }
 
 fn get_blocking_runtime() -> runtime::Runtime {
