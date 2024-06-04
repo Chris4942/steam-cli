@@ -1,6 +1,7 @@
 use std::{collections::HashSet, fmt::Display, num::ParseIntError, vec};
 
 use clap::{command, value_parser, Arg, ArgMatches, Command, Error as ClapError};
+use futures::Future;
 
 use crate::steam::{
     client::{GetUserDetailsRequest, GetUserSummariesRequest},
@@ -11,16 +12,26 @@ use super::{client, service};
 
 const FUZZY_THRESHOLD: u32 = 50;
 
-pub async fn route_arguments(
+pub async fn route_arguments<F, Fut, G, GFut>(
     args: vec::IntoIter<String>,
     user_id: Option<u64>,
-    write_stdout: impl Fn(String),
-    write_stderr: impl Fn(String),
-) {
+    write_stdout: F,
+    write_stderr: G,
+) -> Result<(), Error>
+where
+    F: Fn(String) -> Fut,
+    Fut: Future<Output = ()>,
+    G: Fn(String) -> GFut,
+    GFut: Future<Output = ()>,
+{
     match run_command(args, user_id).await {
-        Ok(str) => write_stdout(str),
-        Err(err) => write_stderr(err.to_string()),
-    }
+        Ok(str) => write_stdout(str).await,
+        Err(err) => {
+            write_stderr(err.to_string()).await;
+            return Err(err);
+        }
+    };
+    Ok(())
 }
 
 pub async fn run_command<'a>(
@@ -209,6 +220,7 @@ async fn run_subcommand<'a>(
     }
 }
 
+#[derive(Debug)]
 pub enum Error {
     Argument(String),
     Parse(String),

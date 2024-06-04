@@ -20,15 +20,25 @@ fn main() {
     rt.block_on(router::route_arguments(
         args.into_iter(),
         user_steam_id,
-        |output| println!("{}", output),
-        |output| eprintln!("{}", output),
-    ));
+        println_async,
+        eprintln_async,
+    ))
+    .unwrap(); // If the command fails when running in cli, just blow up; it's fine
 }
 
+/// TODO: consolidate with discord-cli.rs
 fn get_blocking_runtime() -> runtime::Runtime {
     runtime::Builder::new_current_thread()
         .enable_io()
         .enable_time()
         .build()
         .expect("tokio is borked")
+}
+
+async fn println_async(str: String) {
+    println!("{}", str);
+}
+
+async fn eprintln_async(str: String) {
+    eprintln!("{}", str);
 }

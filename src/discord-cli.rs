@@ -16,37 +16,44 @@ struct Handler;
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
         if msg.content.starts_with("steam-cli") {
-            let response = get_steam_cli_response(&ctx, &msg).await;
-            send_message(ctx, msg, response).await;
+            handle_steam_cli_request(&ctx, &msg).await;
         }
     }
 
     async fn ready(&self, _ctx: Context, _ready: Ready) {}
 }
 
-async fn get_steam_cli_response<'a>(_ctx: &Context, msg: &Message) -> String {
+async fn handle_steam_cli_request(ctx: &Context, msg: &Message) {
+    if let Err(err) = route_steam_cli_request(ctx, msg).await {
+        eprintln!("{}", err);
+    }
+}
+
+async fn route_steam_cli_request(ctx: &Context, msg: &Message) -> Result<(), Error> {
     let args = msg
         .content
         .split(' ')
         .map(|s| s.to_owned())
         .collect::<Vec<_>>();
-    let result = execute_steam_command(args).await;
 
-    match result {
-        Ok(result) => result,
-        Err(result) => result.to_string(),
+    let send_message = |message: String| send_message(ctx, msg, message);
+
+    // TODO: I should definitely be able to replace this `match` clause with a `?`, so I
+    // should do that sometime
+    match steam::router::route_arguments(
+        args.into_iter(),
+        Some(env::var("USER_STEAM_ID")?.parse::<u64>()?),
+        send_message,
+        send_message,
+    )
+    .await
+    {
+        Ok(()) => Ok(()),
+        Err(e) => Err(Error::Execution(e)),
     }
 }
 
-async fn execute_steam_command<'a>(args: Vec<String>) -> Result<String, Error> {
-    Ok(router::run_command(
-        args.into_iter(),
-        Some(env::var("USER_STEAM_ID")?.parse::<u64>()?),
-    )
-    .await?)
-}
-
-async fn send_message(ctx: Context, msg: Message, message: String) {
+async fn send_message(ctx: &Context, msg: &Message, message: String) {
     if let Err(why) = msg
         .channel_id
         .say(&ctx.http, format!("```\n{message}\n```", message = message))
@@ -78,6 +85,7 @@ async fn main() {
     }
 }
 
+#[derive(Debug)]
 enum Error {
     EnvVarMissing(VarError),
     Parse(ParseIntError),
