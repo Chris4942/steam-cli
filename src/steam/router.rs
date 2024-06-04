@@ -34,10 +34,15 @@ where
     Ok(())
 }
 
-pub async fn run_command<'a>(
+pub async fn run_command(
     args: vec::IntoIter<String>,
     user_id: Option<u64>,
 ) -> Result<String, Error> {
+    let matches = get_matches(args).await?;
+    run_subcommand(matches, user_id).await
+}
+
+async fn get_matches(args: vec::IntoIter<String>) -> Result<ArgMatches, Error> {
     let self_flag = Arg::new("self")
         .help("if present, then the calling user will be included as a steam id. In the discord implemenation, then this currently is hard coded to my steam_id")
         .long("self")
@@ -123,7 +128,7 @@ pub async fn run_command<'a>(
                 .arg_required_else_help(true)
         )
         .try_get_matches_from(args)?;
-    run_subcommand(matches, user_id).await
+    return Ok(matches);
 }
 
 fn compute_sorted_games_string(games: &HashSet<Game>) -> String {
