@@ -144,6 +144,12 @@ pub struct Friend {
     pub steamid: String,
 }
 
+impl Display for Friend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "friend: {}", self.steamid)
+    }
+}
+
 pub async fn get_user_summaries<'a>(
     request: GetUserSummariesRequest,
     logger: &'a FilteringLogger<'a>,

@@ -159,7 +159,9 @@ where
     let friends =
         client::get_user_friends_list(client::GetUserDetailsRequest { id: my_steamid }, logger)
             .await?;
-    println!("got friends");
+    logger
+        .trace(format!("got friends list: {:?}", friends))
+        .await;
     let mut ids: Vec<u64> = friends
         .iter()
         .map(|friend| friend.steamid.parse::<u64>())
