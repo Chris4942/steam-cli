@@ -38,16 +38,9 @@ pub async fn run_command(
     logger: &dyn Logger,
 ) -> Result<String, Error> {
     let matches = get_matches(args).await?;
+    let verbose = matches.get_flag("verbose");
 
-    run_subcommand(
-        matches,
-        user_id,
-        &FilteringLogger {
-            logger,
-            verbose: true,
-        },
-    )
-    .await
+    run_subcommand(matches, user_id, &FilteringLogger { logger, verbose }).await
 }
 
 fn compute_sorted_games_string(games: &HashSet<Game>) -> String {
