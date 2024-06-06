@@ -18,6 +18,8 @@ pub async fn route_arguments<F, Fut, G, GFut>(
     write_stdout: F,
     write_stderr: G,
 ) -> Result<(), Error>
+// TODO: this where clause is gross. Figure out how to get rid of this. This shouldn't actually
+// need generics to do what it's doing
 where
     F: Fn(String) -> Fut,
     Fut: Future<Output = ()>,
@@ -128,7 +130,7 @@ async fn get_matches(args: vec::IntoIter<String>) -> Result<ArgMatches, Error> {
                 .arg_required_else_help(true)
         )
         .try_get_matches_from(args)?;
-    return Ok(matches);
+    Ok(matches)
 }
 
 fn compute_sorted_games_string(games: &HashSet<Game>) -> String {

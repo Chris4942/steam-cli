@@ -26,7 +26,6 @@ fn main() {
     .unwrap(); // If the command fails when running in cli, just blow up; it's fine
 }
 
-/// TODO: consolidate with discord-cli.rs
 fn get_blocking_runtime() -> runtime::Runtime {
     runtime::Builder::new_current_thread()
         .enable_io()
