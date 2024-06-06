@@ -1,38 +1,31 @@
 use std::{collections::HashSet, fmt::Display, num::ParseIntError, vec};
 
 use clap::ArgMatches;
-use futures::Future;
 
 use crate::steam::{
     client::{GetUserDetailsRequest, GetUserSummariesRequest},
+    logger::Logger,
     models::Game,
 };
 
 use super::{
     arg_matcher::{self, get_matches},
-    client, service,
+    client,
+    logger::FilteringLogger,
+    service,
 };
 
 const FUZZY_THRESHOLD: u32 = 50;
 
-pub async fn route_arguments<F, Fut, G, GFut>(
+pub async fn route_arguments(
     args: vec::IntoIter<String>,
     user_id: Option<u64>,
-    write_stdout: F,
-    write_stderr: G,
-) -> Result<(), Error>
-// TODO: this where clause is gross. Figure out how to get rid of this. This shouldn't actually
-// need generics to do what it's doing
-where
-    F: Fn(String) -> Fut,
-    Fut: Future<Output = ()>,
-    G: Fn(String) -> GFut,
-    GFut: Future<Output = ()>,
-{
-    match run_command(args, user_id).await {
-        Ok(str) => write_stdout(str).await,
+    logger: &dyn Logger,
+) -> Result<(), Error> {
+    match run_command(args, user_id, logger).await {
+        Ok(str) => logger.stdout(str).await,
         Err(err) => {
-            write_stderr(err.to_string()).await;
+            logger.stderr(err.to_string()).await;
             return Err(err);
         }
     };
@@ -42,9 +35,12 @@ where
 pub async fn run_command(
     args: vec::IntoIter<String>,
     user_id: Option<u64>,
+    logger: &dyn Logger,
 ) -> Result<String, Error> {
     let matches = get_matches(args).await?;
-    run_subcommand(matches, user_id).await
+    let verbose = matches.get_flag("verbose");
+
+    run_subcommand(matches, user_id, &FilteringLogger { logger, verbose }).await
 }
 
 fn compute_sorted_games_string(games: &HashSet<Game>) -> String {
@@ -64,22 +60,25 @@ fn compute_sorted_games_string(games: &HashSet<Game>) -> String {
 async fn run_subcommand<'a>(
     matches: ArgMatches,
     user_steam_id: Option<u64>,
+    logger: &'a FilteringLogger<'a>,
 ) -> Result<String, Error> {
     match matches.subcommand() {
         Some(("games-in-common", arguments)) => {
-            let steam_ids = get_steam_ids(arguments, user_steam_id, "steam_ids").await?;
+            let steam_ids = get_steam_ids(arguments, user_steam_id, "steam_ids", logger).await?;
             Ok(compute_sorted_games_string(
-                &service::find_games_in_common(steam_ids).await?,
+                &service::find_games_in_common(steam_ids, logger).await?,
             ))
         }
         Some(("games-missing-from-group", arguments)) => {
-            let focus_steam_id = get_steam_ids(arguments, user_steam_id, "focus_steam_id")
+            let focus_steam_id = get_steam_ids(arguments, user_steam_id, "focus_steam_id", logger)
                 .await?
                 .first()
                 .ok_or(Error::Argument("could not find focus_steam_id".to_string()))?
                 .to_owned();
-            let other_steam_ids = get_steam_ids(arguments, user_steam_id, "steam_ids").await?;
-            let games = service::games_missing_from_group(focus_steam_id, other_steam_ids).await?;
+            let other_steam_ids =
+                get_steam_ids(arguments, user_steam_id, "steam_ids", logger).await?;
+            let games =
+                service::games_missing_from_group(focus_steam_id, other_steam_ids, logger).await?;
             Ok(compute_sorted_games_string(&games))
         }
         Some(("get-available-endpoints", _)) => {
@@ -99,14 +98,18 @@ async fn run_subcommand<'a>(
                     .ok_or(Error::Argument("1 arg required".to_string()))?
                     .to_owned()
             };
-            let friends = client::get_user_friends_list(GetUserDetailsRequest { id }).await?;
+            let friends =
+                client::get_user_friends_list(GetUserDetailsRequest { id }, logger).await?;
 
-            let summaries = client::get_user_summaries(GetUserSummariesRequest {
-                ids: friends
-                    .iter()
-                    .map(|friend| friend.steamid.parse::<u64>())
-                    .collect::<Result<Vec<u64>, ParseIntError>>()?,
-            })
+            let summaries = client::get_user_summaries(
+                GetUserSummariesRequest {
+                    ids: friends
+                        .iter()
+                        .map(|friend| friend.steamid.parse::<u64>())
+                        .collect::<Result<Vec<u64>, ParseIntError>>()?,
+                },
+                logger,
+            )
             .await?;
             Ok(format!(
                 "friend summaries: {}",
@@ -114,9 +117,10 @@ async fn run_subcommand<'a>(
             ))
         }
         Some(("get-player-summary", arguments)) => {
-            let steamids = get_steam_ids(arguments, user_steam_id, "steam_ids").await?;
+            let steamids = get_steam_ids(arguments, user_steam_id, "steam_ids", logger).await?;
             let friends_list =
-                client::get_user_summaries(GetUserSummariesRequest { ids: steamids }).await?;
+                client::get_user_summaries(GetUserSummariesRequest { ids: steamids }, logger)
+                    .await?;
             Ok(serde_json::to_string_pretty(&friends_list)?)
         }
         Some(("friends-who-own-game", arguments)) => {
@@ -128,7 +132,8 @@ async fn run_subcommand<'a>(
                 "user_steam_id must be set to run this command".to_string(),
             ))?;
 
-            let friends_list = service::find_friends_who_own_game(gameid, user_steam_id).await?;
+            let friends_list =
+                service::find_friends_who_own_game(gameid, user_steam_id, logger).await?;
 
             Ok(format!(
                 "{}\nTotal: {}",
@@ -194,6 +199,7 @@ async fn get_steam_ids<'a>(
     arguments: &ArgMatches,
     user_steam_id: Option<u64>,
     steam_ids_key: &str,
+    logger: &'a FilteringLogger<'a>,
 ) -> Result<Vec<u64>, Error> {
     let partially_ingested_steam_ids = arguments
         .get_many::<String>(steam_ids_key)
@@ -210,10 +216,15 @@ async fn get_steam_ids<'a>(
         ))?;
         let steam_id_strings = partially_ingested_steam_ids.map(|s| s.trim());
         if arguments.get_flag("strict") {
-            service::resolve_usernames_strictly(steam_id_strings, user_steam_id).await?
+            service::resolve_usernames_strictly(steam_id_strings, user_steam_id, logger).await?
         } else {
-            service::resolve_usernames_fuzzily(steam_id_strings, user_steam_id, FUZZY_THRESHOLD)
-                .await?
+            service::resolve_usernames_fuzzily(
+                steam_id_strings,
+                user_steam_id,
+                FUZZY_THRESHOLD,
+                logger,
+            )
+            .await?
         }
     };
     Ok(steam_ids)

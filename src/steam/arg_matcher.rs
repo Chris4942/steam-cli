@@ -18,6 +18,11 @@ pub async fn get_matches(args: vec::IntoIter<String>) -> Result<ArgMatches, Erro
         .long("use-ids")
         .short('i')
         .action(clap::ArgAction::SetTrue);
+    let verbose_flag = Arg::new("verbose")
+        .long("verbose")
+        .short('v')
+        .action(clap::ArgAction::SetTrue);
+
     let steam_ids_arg = Arg::new("steam_ids")
         .help("id(s) assoicated with steam account(s), e.g., for accounts 42 and 7: steam-cli gic 7 42")
         .num_args(1..)
@@ -33,6 +38,7 @@ pub async fn get_matches(args: vec::IntoIter<String>) -> Result<ArgMatches, Erro
         .author("Chris West")
         .about("Some utility functions to run against steam")
         .arg_required_else_help(true)
+        .arg(verbose_flag.clone())
         .subcommand(
             Command::new("games-in-common")
                 .about("find the intersection of games owned by provided steam accounts")
@@ -104,7 +110,7 @@ impl From<ClapError> for Error {
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::Matcher(str) => write!(f, "MatcherError: {}", str),
+            Error::Matcher(str) => write!(f, "{str}"),
         }
     }
 }

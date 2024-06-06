@@ -7,12 +7,15 @@ use std::{
 use reqwest;
 use serde::{Deserialize, Serialize};
 
-use super::models::Game;
+use super::{logger::FilteringLogger, models::Game};
 use backoff::ExponentialBackoff;
 
 const BASE_URL: &str = "http://api.steampowered.com";
 
-pub async fn get_owned_games(request: GetUserDetailsRequest) -> Result<Vec<Game>, Error> {
+pub async fn get_owned_games<'a>(
+    request: GetUserDetailsRequest,
+    logger: &'a FilteringLogger<'a>,
+) -> Result<Vec<Game>, Error> {
     let url = format!(
         "{base}/IPlayerService/GetOwnedGames/v0001/",
         base = BASE_URL
@@ -45,7 +48,9 @@ pub async fn get_owned_games(request: GetUserDetailsRequest) -> Result<Vec<Game>
             return Ok(response);
         }
         if response.status().as_u16() == 429 {
-            eprintln!("retyring for {} due to 429", request.id);
+            logger
+                .trace(format!("retyring for {} due to 429", request.id))
+                .await;
             return Err(backoff::Error::Transient {
                 err: 429,
                 retry_after: None,
@@ -101,9 +106,14 @@ pub struct GetAvailableEndpointsResponse {
     pub apilist: ApiList,
 }
 
-pub async fn get_user_friends_list(request: GetUserDetailsRequest) -> Result<Vec<Friend>, Error> {
+pub async fn get_user_friends_list<'a>(
+    request: GetUserDetailsRequest,
+    logger: &'a FilteringLogger<'a>,
+) -> Result<Vec<Friend>, Error> {
     let user = request.id;
-    eprintln!("getting user friends for user: {user}");
+    logger
+        .trace(format!("getting user friends for user: {user}"))
+        .await;
 
     let params = [
         ("key", env::var("STEAM_API_KEY")?),
@@ -134,11 +144,20 @@ pub struct Friend {
     pub steamid: String,
 }
 
-pub async fn get_user_summaries(
+impl Display for Friend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "friend: {}", self.steamid)
+    }
+}
+
+pub async fn get_user_summaries<'a>(
     request: GetUserSummariesRequest,
+    logger: &'a FilteringLogger<'a>,
 ) -> Result<Vec<UserSummary>, Error> {
     let users = request.ids;
-    eprintln!("getting player summary for users: {:?}", users);
+    logger
+        .trace(format!("getting player summary for users: {:?}", users))
+        .await;
 
     let params = [
         ("key", env::var("STEAM_API_KEY")?),

@@ -8,6 +8,7 @@ use serenity::model::channel::Message;
 use serenity::prelude::*;
 
 mod steam;
+use steam::logger::Logger;
 use steam::router;
 
 struct Handler;
@@ -36,30 +37,17 @@ async fn route_steam_cli_request(ctx: &Context, msg: &Message) -> Result<(), Err
         .map(|s| s.to_owned())
         .collect::<Vec<_>>();
 
-    let send_message = |message: String| send_message(ctx, msg, message);
-
     // TODO: I should definitely be able to replace this `match` clause with a `?`, so I
     // should do that sometime
     match steam::router::route_arguments(
         args.into_iter(),
         Some(env::var("USER_STEAM_ID")?.parse::<u64>()?),
-        send_message,
-        send_message,
+        &DiscordLogger { ctx, msg },
     )
     .await
     {
         Ok(()) => Ok(()),
         Err(e) => Err(Error::Execution(e)),
-    }
-}
-
-async fn send_message(ctx: &Context, msg: &Message, message: String) {
-    if let Err(why) = msg
-        .channel_id
-        .say(&ctx.http, format!("```\n{message}\n```", message = message))
-        .await
-    {
-        println!("Error sending message: {why:?}")
     }
 }
 
@@ -117,5 +105,31 @@ impl From<ParseIntError> for Error {
 impl From<router::Error> for Error {
     fn from(value: router::Error) -> Self {
         Error::Execution(value)
+    }
+}
+
+async fn send_message(ctx: &Context, msg: &Message, message: String) {
+    if let Err(why) = msg
+        .channel_id
+        .say(&ctx.http, format!("```\n{message}\n```", message = message))
+        .await
+    {
+        println!("Error sending message: {why:?}")
+    }
+}
+
+struct DiscordLogger<'a> {
+    msg: &'a Message,
+    ctx: &'a Context,
+}
+
+#[async_trait]
+impl<'a> Logger for DiscordLogger<'a> {
+    async fn stdout(&self, str: String) {
+        send_message(self.ctx, self.msg, str).await
+    }
+
+    async fn stderr(&self, str: String) {
+        send_message(self.ctx, self.msg, str).await
     }
 }
