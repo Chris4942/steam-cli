@@ -20,6 +20,8 @@ impl<'a> FilteringLogger<'a> {
         self.logger.stderr(str).await
     }
 
+    // TODO: it would be more performant here to pass in a lambda having a branch here, but I'm not
+    // gonna spend time right now caring about that
     pub async fn trace(&self, str: String) {
         if self.verbose {
             self.logger.stderr(str).await
