@@ -54,95 +54,111 @@ pub async fn games_missing_from_group<'a>(
     Ok(games_in_common_minus_focus)
 }
 
-pub async fn resolve_usernames_strictly(
+pub async fn resolve_usernames_strictly<'a>(
     usernames: impl Iterator<Item = &str>,
     my_steamid: u64,
+    logger: &'a FilteringLogger<'a>,
 ) -> Result<Vec<u64>, Error> {
-    resolve_username_with_mapping_function(usernames, my_steamid, |username, user_summaries| {
-        user_summaries
-            .iter()
-            .find(|user| user.personaname.to_ascii_lowercase() == *username.to_ascii_lowercase())
-            .ok_or(Error::User("supplied user not in list".to_string()))
-    })
+    resolve_username_with_mapping_function(
+        usernames,
+        my_steamid,
+        |username, user_summaries| {
+            user_summaries
+                .iter()
+                .find(|user| {
+                    user.personaname.to_ascii_lowercase() == *username.to_ascii_lowercase()
+                })
+                .ok_or(Error::User("supplied user not in list".to_string()))
+        },
+        logger,
+    )
     .await
 }
 
-pub async fn resolve_usernames_fuzzily(
+pub async fn resolve_usernames_fuzzily<'a>(
     usernames: impl Iterator<Item = &str>,
     my_steamid: u64,
     threshold: u32,
+    logger: &'a FilteringLogger<'a>,
 ) -> Result<Vec<u64>, Error> {
     // TODO: this involves a lot of unnecessaries recomputations around user_summaries that should
     // be removed
-    resolve_username_with_mapping_function(usernames, my_steamid, |username, user_summaries| {
-        let usernames = user_summaries
-            .iter()
-            .map(|summary| &summary.personaname)
-            .collect::<Vec<_>>();
-        let matches = nucleo_matcher::pattern::Pattern::parse(
-            username,
-            nucleo_matcher::pattern::CaseMatching::Ignore,
-            nucleo_matcher::pattern::Normalization::Smart,
-        )
-        .match_list_with_index(
-            usernames.clone(),
-            &mut nucleo_matcher::Matcher::new(nucleo_matcher::Config::DEFAULT),
-        );
+    resolve_username_with_mapping_function(
+        usernames,
+        my_steamid,
+        |username, user_summaries| {
+            let usernames = user_summaries
+                .iter()
+                .map(|summary| &summary.personaname)
+                .collect::<Vec<_>>();
+            let matches = nucleo_matcher::pattern::Pattern::parse(
+                username,
+                nucleo_matcher::pattern::CaseMatching::Ignore,
+                nucleo_matcher::pattern::Normalization::Smart,
+            )
+            .match_list_with_index(
+                usernames.clone(),
+                &mut nucleo_matcher::Matcher::new(nucleo_matcher::Config::DEFAULT),
+            );
 
-        if !matches.is_empty() {
-            let (_, score, index) = matches[0];
+            if !matches.is_empty() {
+                let (_, score, index) = matches[0];
 
-            if score > threshold {
-                return Ok(&user_summaries[index]);
+                if score > threshold {
+                    return Ok(&user_summaries[index]);
+                }
             }
-        }
 
-        let realnames_indexed = user_summaries
-            .iter()
-            .enumerate()
-            .filter_map(|(index, summary)| {
-                summary.realname.as_ref().map(|realname| (index, realname))
-            })
-            .collect::<Vec<_>>();
+            let realnames_indexed = user_summaries
+                .iter()
+                .enumerate()
+                .filter_map(|(index, summary)| {
+                    summary.realname.as_ref().map(|realname| (index, realname))
+                })
+                .collect::<Vec<_>>();
 
-        let realnames = realnames_indexed
-            .iter()
-            .map(|(_, realname)| realname)
-            .collect::<Vec<_>>();
+            let realnames = realnames_indexed
+                .iter()
+                .map(|(_, realname)| realname)
+                .collect::<Vec<_>>();
 
-        let matches = nucleo_matcher::pattern::Pattern::parse(
-            username,
-            nucleo_matcher::pattern::CaseMatching::Ignore,
-            nucleo_matcher::pattern::Normalization::Smart,
-        )
-        .match_list_with_index(
-            realnames,
-            &mut nucleo_matcher::Matcher::new(nucleo_matcher::Config::DEFAULT),
-        );
+            let matches = nucleo_matcher::pattern::Pattern::parse(
+                username,
+                nucleo_matcher::pattern::CaseMatching::Ignore,
+                nucleo_matcher::pattern::Normalization::Smart,
+            )
+            .match_list_with_index(
+                realnames,
+                &mut nucleo_matcher::Matcher::new(nucleo_matcher::Config::DEFAULT),
+            );
 
-        if !matches.is_empty() {
-            let (_, score, index) = matches[0];
+            if !matches.is_empty() {
+                let (_, score, index) = matches[0];
 
-            if score > threshold {
-                return Ok(&user_summaries[realnames_indexed[index].0]);
+                if score > threshold {
+                    return Ok(&user_summaries[realnames_indexed[index].0]);
+                }
             }
-        }
 
-        Err(Error::User(format!("Could not match {username}")))
-    })
+            Err(Error::User(format!("Could not match {username}")))
+        },
+        logger,
+    )
     .await
 }
 
-pub async fn resolve_username_with_mapping_function<F>(
+pub async fn resolve_username_with_mapping_function<'b, F>(
     usernames: impl Iterator<Item = &str>,
     my_steamid: u64,
     mapping_function: F,
+    logger: &'b FilteringLogger<'b>,
 ) -> Result<Vec<u64>, Error>
 where
     F: for<'a> Fn(&str, &'a Vec<client::UserSummary>) -> Result<&'a UserSummary, Error>,
 {
     let friends =
-        client::get_user_friends_list(client::GetUserDetailsRequest { id: my_steamid }).await?;
+        client::get_user_friends_list(client::GetUserDetailsRequest { id: my_steamid }, logger)
+            .await?;
     println!("got friends");
     let mut ids: Vec<u64> = friends
         .iter()
@@ -166,7 +182,8 @@ pub async fn find_friends_who_own_game<'a>(
     logger: &'a FilteringLogger<'a>,
 ) -> Result<Vec<client::UserSummary>, Error> {
     let friends =
-        client::get_user_friends_list(client::GetUserDetailsRequest { id: my_steamid }).await?;
+        client::get_user_friends_list(client::GetUserDetailsRequest { id: my_steamid }, logger)
+            .await?;
 
     let steamids_iterator = friends
         .iter()
@@ -181,13 +198,15 @@ pub async fn find_friends_who_own_game<'a>(
     )
     .await;
 
+    let mut errors = vec![];
+
     let friends_with_game_ids = player_owned_games
         .into_iter()
         .zip(steamids_iterator)
         .filter_map(|(result, steam_id)| match result {
             Ok(v) => Some((v, steam_id)),
             Err(err) => {
-                eprintln!("filtering out result due to {:?}", err);
+                errors.push(err);
                 None
             }
         })
@@ -199,6 +218,12 @@ pub async fn find_friends_who_own_game<'a>(
         ids: friends_with_game_ids,
     })
     .await?;
+
+    if !errors.is_empty() {
+        logger
+            .trace(format!("filtered out some results due to {:?}", errors))
+            .await;
+    }
 
     Ok(user_summaries)
 }

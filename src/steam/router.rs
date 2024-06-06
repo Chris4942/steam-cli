@@ -71,18 +71,19 @@ async fn run_subcommand<'a>(
 ) -> Result<String, Error> {
     match matches.subcommand() {
         Some(("games-in-common", arguments)) => {
-            let steam_ids = get_steam_ids(arguments, user_steam_id, "steam_ids").await?;
+            let steam_ids = get_steam_ids(arguments, user_steam_id, "steam_ids", logger).await?;
             Ok(compute_sorted_games_string(
                 &service::find_games_in_common(steam_ids, logger).await?,
             ))
         }
         Some(("games-missing-from-group", arguments)) => {
-            let focus_steam_id = get_steam_ids(arguments, user_steam_id, "focus_steam_id")
+            let focus_steam_id = get_steam_ids(arguments, user_steam_id, "focus_steam_id", logger)
                 .await?
                 .first()
                 .ok_or(Error::Argument("could not find focus_steam_id".to_string()))?
                 .to_owned();
-            let other_steam_ids = get_steam_ids(arguments, user_steam_id, "steam_ids").await?;
+            let other_steam_ids =
+                get_steam_ids(arguments, user_steam_id, "steam_ids", logger).await?;
             let games =
                 service::games_missing_from_group(focus_steam_id, other_steam_ids, logger).await?;
             Ok(compute_sorted_games_string(&games))
@@ -104,7 +105,8 @@ async fn run_subcommand<'a>(
                     .ok_or(Error::Argument("1 arg required".to_string()))?
                     .to_owned()
             };
-            let friends = client::get_user_friends_list(GetUserDetailsRequest { id }).await?;
+            let friends =
+                client::get_user_friends_list(GetUserDetailsRequest { id }, logger).await?;
 
             let summaries = client::get_user_summaries(GetUserSummariesRequest {
                 ids: friends
@@ -119,7 +121,7 @@ async fn run_subcommand<'a>(
             ))
         }
         Some(("get-player-summary", arguments)) => {
-            let steamids = get_steam_ids(arguments, user_steam_id, "steam_ids").await?;
+            let steamids = get_steam_ids(arguments, user_steam_id, "steam_ids", logger).await?;
             let friends_list =
                 client::get_user_summaries(GetUserSummariesRequest { ids: steamids }).await?;
             Ok(serde_json::to_string_pretty(&friends_list)?)
@@ -200,6 +202,7 @@ async fn get_steam_ids<'a>(
     arguments: &ArgMatches,
     user_steam_id: Option<u64>,
     steam_ids_key: &str,
+    logger: &'a FilteringLogger<'a>,
 ) -> Result<Vec<u64>, Error> {
     let partially_ingested_steam_ids = arguments
         .get_many::<String>(steam_ids_key)
@@ -216,10 +219,15 @@ async fn get_steam_ids<'a>(
         ))?;
         let steam_id_strings = partially_ingested_steam_ids.map(|s| s.trim());
         if arguments.get_flag("strict") {
-            service::resolve_usernames_strictly(steam_id_strings, user_steam_id).await?
+            service::resolve_usernames_strictly(steam_id_strings, user_steam_id, logger).await?
         } else {
-            service::resolve_usernames_fuzzily(steam_id_strings, user_steam_id, FUZZY_THRESHOLD)
-                .await?
+            service::resolve_usernames_fuzzily(
+                steam_id_strings,
+                user_steam_id,
+                FUZZY_THRESHOLD,
+                logger,
+            )
+            .await?
         }
     };
     Ok(steam_ids)

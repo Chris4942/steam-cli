@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
 #[async_trait]
-pub trait Logger {
+pub trait Logger: Send + Sync {
     async fn stdout(&self, str: String);
     async fn stderr(&self, str: String);
 }
