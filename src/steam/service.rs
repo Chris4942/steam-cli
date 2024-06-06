@@ -41,7 +41,9 @@ pub async fn games_missing_from_group<'a>(
     other_steam_ids: Vec<u64>,
     logger: &'a FilteringLogger<'a>,
 ) -> Result<HashSet<Game>, Error> {
-    println!("finding games missing from group");
+    logger
+        .trace("finding games missing from group...".to_string())
+        .await;
     let result = join!(
         client::get_owned_games(client::GetUserDetailsRequest { id: focus_steam_id }, logger),
         find_games_in_common(other_steam_ids, logger)
