@@ -1,6 +1,7 @@
 mod steam;
 use std::env;
 
+use async_trait::async_trait;
 use steam::router;
 use tokio::runtime;
 
@@ -20,8 +21,7 @@ fn main() {
     rt.block_on(router::route_arguments(
         args.into_iter(),
         user_steam_id,
-        println_async,
-        eprintln_async,
+        &StdLogger {},
     ))
     .unwrap(); // If the command fails when running in cli, just blow up; it's fine
 }
@@ -40,4 +40,17 @@ async fn println_async(str: String) {
 
 async fn eprintln_async(str: String) {
     eprintln!("{}", str);
+}
+
+struct StdLogger {}
+
+#[async_trait]
+impl steam::logger::Logger for StdLogger {
+    async fn stdout(&self, str: String) {
+        println_async(str).await
+    }
+
+    async fn stderr(&self, str: String) {
+        eprintln_async(str).await
+    }
 }

@@ -7,12 +7,15 @@ use std::{
 use reqwest;
 use serde::{Deserialize, Serialize};
 
-use super::models::Game;
+use super::{logger::FilteringLogger, models::Game};
 use backoff::ExponentialBackoff;
 
 const BASE_URL: &str = "http://api.steampowered.com";
 
-pub async fn get_owned_games(request: GetUserDetailsRequest) -> Result<Vec<Game>, Error> {
+pub async fn get_owned_games<'a>(
+    request: GetUserDetailsRequest,
+    logger: &'a FilteringLogger<'a>,
+) -> Result<Vec<Game>, Error> {
     let url = format!(
         "{base}/IPlayerService/GetOwnedGames/v0001/",
         base = BASE_URL
@@ -45,7 +48,7 @@ pub async fn get_owned_games(request: GetUserDetailsRequest) -> Result<Vec<Game>
             return Ok(response);
         }
         if response.status().as_u16() == 429 {
-            eprintln!("retyring for {} due to 429", request.id);
+            logger.trace(format!("retyring for {} due to 429", request.id));
             return Err(backoff::Error::Transient {
                 err: 429,
                 retry_after: None,

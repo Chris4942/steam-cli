@@ -1,16 +1,22 @@
-use super::client::{self, GetUserSummariesRequest, UserSummary};
+use super::{
+    client::{self, GetUserSummariesRequest, UserSummary},
+    logger::FilteringLogger,
+};
 use futures::{future::join_all, join};
 use std::{collections::HashSet, fmt::Display, num::ParseIntError};
 
 use super::models::Game;
 
-pub async fn find_games_in_common(steam_ids: Vec<u64>) -> Result<HashSet<Game>, Error> {
+pub async fn find_games_in_common<'a>(
+    steam_ids: Vec<u64>,
+    logger: &'a FilteringLogger<'a>,
+) -> Result<HashSet<Game>, Error> {
     let mut games_set = HashSet::<Game>::new();
 
     let query_results = join_all(
         steam_ids
             .into_iter()
-            .map(|id| client::get_owned_games(client::GetUserDetailsRequest { id })),
+            .map(|id| client::get_owned_games(client::GetUserDetailsRequest { id }, logger)),
     )
     .await;
 
@@ -30,14 +36,15 @@ pub async fn find_games_in_common(steam_ids: Vec<u64>) -> Result<HashSet<Game>, 
     Ok(games_set)
 }
 
-pub async fn games_missing_from_group(
+pub async fn games_missing_from_group<'a>(
     focus_steam_id: u64,
     other_steam_ids: Vec<u64>,
+    logger: &'a FilteringLogger<'a>,
 ) -> Result<HashSet<Game>, Error> {
     println!("finding games missing from group");
     let result = join!(
-        client::get_owned_games(client::GetUserDetailsRequest { id: focus_steam_id }),
-        find_games_in_common(other_steam_ids)
+        client::get_owned_games(client::GetUserDetailsRequest { id: focus_steam_id }, logger),
+        find_games_in_common(other_steam_ids, logger)
     );
     let mut games_in_common_minus_focus = result.1?;
 
@@ -153,9 +160,10 @@ where
     Ok(steamids)
 }
 
-pub async fn find_friends_who_own_game(
+pub async fn find_friends_who_own_game<'a>(
     appid: &u64,
     my_steamid: u64,
+    logger: &'a FilteringLogger<'a>,
 ) -> Result<Vec<client::UserSummary>, Error> {
     let friends =
         client::get_user_friends_list(client::GetUserDetailsRequest { id: my_steamid }).await?;
@@ -168,7 +176,7 @@ pub async fn find_friends_who_own_game(
     let player_owned_games = join_all(
         steamids_iterator
             .clone() // We need to use this iterator again later so we can't move it here
-            .map(|id| (client::get_owned_games(client::GetUserDetailsRequest { id })))
+            .map(|id| (client::get_owned_games(client::GetUserDetailsRequest { id }, logger)))
             .collect::<Vec<_>>(),
     )
     .await;
