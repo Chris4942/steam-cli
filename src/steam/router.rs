@@ -101,12 +101,15 @@ async fn run_subcommand<'a>(
             let friends =
                 client::get_user_friends_list(GetUserDetailsRequest { id }, logger).await?;
 
-            let summaries = client::get_user_summaries(GetUserSummariesRequest {
-                ids: friends
-                    .iter()
-                    .map(|friend| friend.steamid.parse::<u64>())
-                    .collect::<Result<Vec<u64>, ParseIntError>>()?,
-            })
+            let summaries = client::get_user_summaries(
+                GetUserSummariesRequest {
+                    ids: friends
+                        .iter()
+                        .map(|friend| friend.steamid.parse::<u64>())
+                        .collect::<Result<Vec<u64>, ParseIntError>>()?,
+                },
+                logger,
+            )
             .await?;
             Ok(format!(
                 "friend summaries: {}",
@@ -116,7 +119,8 @@ async fn run_subcommand<'a>(
         Some(("get-player-summary", arguments)) => {
             let steamids = get_steam_ids(arguments, user_steam_id, "steam_ids", logger).await?;
             let friends_list =
-                client::get_user_summaries(GetUserSummariesRequest { ids: steamids }).await?;
+                client::get_user_summaries(GetUserSummariesRequest { ids: steamids }, logger)
+                    .await?;
             Ok(serde_json::to_string_pretty(&friends_list)?)
         }
         Some(("friends-who-own-game", arguments)) => {

@@ -144,11 +144,14 @@ pub struct Friend {
     pub steamid: String,
 }
 
-pub async fn get_user_summaries(
+pub async fn get_user_summaries<'a>(
     request: GetUserSummariesRequest,
+    logger: &'a FilteringLogger<'a>,
 ) -> Result<Vec<UserSummary>, Error> {
     let users = request.ids;
-    eprintln!("getting player summary for users: {:?}", users);
+    logger
+        .trace(format!("getting player summary for users: {:?}", users))
+        .await;
 
     let params = [
         ("key", env::var("STEAM_API_KEY")?),

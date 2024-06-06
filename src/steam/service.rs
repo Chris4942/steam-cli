@@ -166,7 +166,7 @@ where
         .collect::<Result<Vec<u64>, ParseIntError>>()?;
     ids.push(my_steamid);
     let user_summaries =
-        client::get_user_summaries(client::GetUserSummariesRequest { ids }).await?;
+        client::get_user_summaries(client::GetUserSummariesRequest { ids }, logger).await?;
     let steamids: Vec<u64> = usernames
         .map(|username| mapping_function(username, &user_summaries))
         .collect::<Result<Vec<_>, Error>>()?
@@ -214,9 +214,12 @@ pub async fn find_friends_who_own_game<'a>(
         .map(|(_, steamid)| steamid)
         .collect::<Vec<u64>>();
 
-    let user_summaries = client::get_user_summaries(GetUserSummariesRequest {
-        ids: friends_with_game_ids,
-    })
+    let user_summaries = client::get_user_summaries(
+        GetUserSummariesRequest {
+            ids: friends_with_game_ids,
+        },
+        logger,
+    )
     .await?;
 
     if !errors.is_empty() {
