@@ -4,4 +4,4 @@
 
 sudo pacman -Sgq nerd-fonts
 
-sudo pacman -S code neovim alacritty # tff-nerd-fonts-symbols-common alacritty
+sudo pacman -S code neovim alacritty xsel # tff-nerd-fonts-symbols-common alacritty
