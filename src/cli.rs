@@ -2,7 +2,8 @@ mod steam;
 use std::env;
 
 use steam::router;
-use tokio::runtime;
+mod util;
+use util::async_help::get_blocking_runtime;
 
 fn main() {
     let args = env::args_os()
@@ -23,14 +24,6 @@ fn main() {
         &StdLogger {},
     ))
     .unwrap(); // If the command fails when running in cli, just blow up; it's fine
-}
-
-fn get_blocking_runtime() -> runtime::Runtime {
-    runtime::Builder::new_current_thread()
-        .enable_io()
-        .enable_time()
-        .build()
-        .expect("tokio is borked")
 }
 
 struct StdLogger {}

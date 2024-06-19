@@ -13,6 +13,8 @@ use serenity::prelude::*;
 mod steam;
 use steam::logger::Logger;
 use steam::router;
+mod util;
+use util::async_help::get_blocking_runtime;
 
 struct Handler;
 
@@ -124,6 +126,7 @@ fn build_logger<'a>(ctx: &'a Context, msg: &'a Message) -> DiscordLogger<'a> {
         tx,
     };
     thread::spawn(move || {
+        let rt = get_blocking_runtime();
         while true {
             let log = match rx.recv_timeout(Duration::from_secs(2)) {
                 Ok(log) => log,
@@ -132,7 +135,7 @@ fn build_logger<'a>(ctx: &'a Context, msg: &'a Message) -> DiscordLogger<'a> {
                     return;
                 }
             };
-            send_message(&ctx, msg, log);
+            rt.block_on(send_message(&ctx, msg, log));
         }
     });
     return logger;
