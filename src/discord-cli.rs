@@ -28,21 +28,20 @@ impl EventHandler for Handler {
             tx: self.tx.clone(),
         };
         if msg.content.starts_with("steam-cli") {
-            handle_steam_cli_request(&ctx, &msg, logger).await;
+            handle_steam_cli_request(&msg, logger).await;
         }
     }
 
     async fn ready(&self, _ctx: Context, _ready: Ready) {}
 }
 
-async fn handle_steam_cli_request<'a>(ctx: &Context, msg: &Message, logger: DiscordLogger<'a>) {
-    if let Err(err) = route_steam_cli_request(ctx, msg, logger).await {
+async fn handle_steam_cli_request<'a>(msg: &Message, logger: DiscordLogger<'a>) {
+    if let Err(err) = route_steam_cli_request(msg, logger).await {
         eprintln!("{}", err);
     }
 }
 
 async fn route_steam_cli_request<'a>(
-    _: &Context,
     msg: &Message,
     logger: DiscordLogger<'a>,
 ) -> Result<(), Error> {
