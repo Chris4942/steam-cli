@@ -18,10 +18,10 @@ edition = "2021"
 backoff = { version = "0.4.0", features = ["tokio"] }
 clap = { version = "4.5.4", features = ["derive", "cargo"] }
 futures = "0.3.30"
+itertools = "0.13.0"
 nucleo-matcher = { git = "https://github.com/Chris4942/nucleo", branch = "cwest/add-match-list-indexed", version = "0.3.1" }
 reqwest = "0.12.4"
 serde = { version = "1.0.200", features = ["derive"] }
 serde_json = "1.0.116"
 serenity = "0.12"
 tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread"] }
-itertools = "0.13.0"
