@@ -1,6 +1,8 @@
 use std::env::{self, VarError};
 use std::fmt::Display;
 use std::num::ParseIntError;
+use std::sync::mpsc::{channel, Sender};
+use std::thread;
 
 use serenity::all::Ready;
 use serenity::async_trait;
@@ -10,27 +12,39 @@ use serenity::prelude::*;
 mod steam;
 use steam::logger::Logger;
 use steam::router;
+mod util;
+use util::async_help::get_blocking_runtime;
 
-struct Handler;
+struct Handler {
+    tx: Sender<DiscordMessage>,
+}
 
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
+        let logger = DiscordLogger {
+            ctx: &ctx,
+            msg: &msg,
+            tx: self.tx.clone(),
+        };
         if msg.content.starts_with("steam-cli") {
-            handle_steam_cli_request(&ctx, &msg).await;
+            handle_steam_cli_request(&msg, logger).await;
         }
     }
 
     async fn ready(&self, _ctx: Context, _ready: Ready) {}
 }
 
-async fn handle_steam_cli_request(ctx: &Context, msg: &Message) {
-    if let Err(err) = route_steam_cli_request(ctx, msg).await {
+async fn handle_steam_cli_request<'a>(msg: &Message, logger: DiscordLogger<'a>) {
+    if let Err(err) = route_steam_cli_request(msg, logger).await {
         eprintln!("{}", err);
     }
 }
 
-async fn route_steam_cli_request(ctx: &Context, msg: &Message) -> Result<(), Error> {
+async fn route_steam_cli_request<'a>(
+    msg: &Message,
+    logger: DiscordLogger<'a>,
+) -> Result<(), Error> {
     let args = msg
         .content
         .split(' ')
@@ -42,7 +56,7 @@ async fn route_steam_cli_request(ctx: &Context, msg: &Message) -> Result<(), Err
     match steam::router::route_arguments(
         args.into_iter(),
         Some(env::var("USER_STEAM_ID")?.parse::<u64>()?),
-        &DiscordLogger { ctx, msg },
+        &logger,
     )
     .await
     {
@@ -60,9 +74,36 @@ async fn main() {
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
 
+    let (tx, rx) = channel::<DiscordMessage>();
+    thread::spawn(move || {
+        eprintln!("logging thread started");
+        let rt = get_blocking_runtime();
+        let mut errors_since_success = 0;
+        loop {
+            eprintln!("awaiting message...");
+            let log = match rx.recv() {
+                Ok(log) => log,
+                Err(err) => {
+                    errors_since_success += 1;
+                    eprintln!(
+                        "error received: {}\n\tErrors received since last success: {}",
+                        err, errors_since_success
+                    );
+                    if errors_since_success > 3 {
+                        eprintln!("error received: {}\nNot sure what's going on, so the thread looping thread is exiting", err);
+                        return;
+                    } else {
+                        continue;
+                    }
+                }
+            };
+            rt.block_on(send_message(log));
+        }
+    });
+
     // Create a new instance of the Client, logging in as a bot.
     let mut client = Client::builder(&token, intents)
-        .event_handler(Handler)
+        .event_handler(Handler { tx })
         .await
         .expect("Err creating client");
 
@@ -108,10 +149,14 @@ impl From<router::Error> for Error {
     }
 }
 
-async fn send_message(ctx: &Context, msg: &Message, message: String) {
-    if let Err(why) = msg
+async fn send_message<'a>(discord_message: DiscordMessage) {
+    if let Err(why) = discord_message
+        .msg
         .channel_id
-        .say(&ctx.http, format!("```\n{message}\n```", message = message))
+        .say(
+            &discord_message.ctx.http,
+            format!("```\n{message}\n```", message = discord_message.message),
+        )
         .await
     {
         println!("Error sending message: {why:?}")
@@ -121,15 +166,37 @@ async fn send_message(ctx: &Context, msg: &Message, message: String) {
 struct DiscordLogger<'a> {
     msg: &'a Message,
     ctx: &'a Context,
+    tx: Sender<DiscordMessage>,
 }
 
 #[async_trait]
 impl<'a> Logger for DiscordLogger<'a> {
-    async fn stdout(&self, str: String) {
-        send_message(self.ctx, self.msg, str).await
+    fn stdout(&self, str: String) {
+        if let Err(err) = self.tx.send(self.create_discord_message(str.clone())) {
+            eprintln!("Failed to send message {} to channel due to {}", str, err);
+        }
     }
 
-    async fn stderr(&self, str: String) {
-        send_message(self.ctx, self.msg, str).await
+    fn stderr(&self, str: String) {
+        if let Err(err) = self.tx.send(self.create_discord_message(str.clone())) {
+            eprintln!("Failed to send message {} to channel due to {}", str, err);
+        }
     }
+}
+
+impl<'a> DiscordLogger<'a> {
+    fn create_discord_message(&self, message: String) -> DiscordMessage {
+        // TODO: these clones might be unnecessary, but I'm not sure how to avoid them
+        DiscordMessage {
+            msg: self.msg.clone(),
+            ctx: self.ctx.clone(),
+            message,
+        }
+    }
+}
+
+struct DiscordMessage {
+    msg: Message,
+    ctx: Context,
+    message: String,
 }

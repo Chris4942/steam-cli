@@ -1,9 +1,9 @@
 mod steam;
 use std::env;
 
-use async_trait::async_trait;
 use steam::router;
-use tokio::runtime;
+mod util;
+use util::async_help::get_blocking_runtime;
 
 fn main() {
     let args = env::args_os()
@@ -26,31 +26,14 @@ fn main() {
     .unwrap(); // If the command fails when running in cli, just blow up; it's fine
 }
 
-fn get_blocking_runtime() -> runtime::Runtime {
-    runtime::Builder::new_current_thread()
-        .enable_io()
-        .enable_time()
-        .build()
-        .expect("tokio is borked")
-}
-
-async fn println_async(str: String) {
-    println!("{}", str);
-}
-
-async fn eprintln_async(str: String) {
-    eprintln!("{}", str);
-}
-
 struct StdLogger {}
 
-#[async_trait]
 impl steam::logger::Logger for StdLogger {
-    async fn stdout(&self, str: String) {
-        println_async(str).await
+    fn stdout(&self, str: String) {
+        println!("{}", str)
     }
 
-    async fn stderr(&self, str: String) {
-        eprintln_async(str).await
+    fn stderr(&self, str: String) {
+        eprintln!("{}", str)
     }
 }

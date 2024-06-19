@@ -23,9 +23,9 @@ pub async fn route_arguments(
     logger: &dyn Logger,
 ) -> Result<(), Error> {
     match run_command(args, user_id, logger).await {
-        Ok(str) => logger.stdout(str).await,
+        Ok(str) => logger.stdout(str),
         Err(err) => {
-            logger.stderr(err.to_string()).await;
+            logger.stderr(err.to_string());
             return Err(err);
         }
     };

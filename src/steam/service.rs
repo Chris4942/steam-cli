@@ -41,9 +41,7 @@ pub async fn games_missing_from_group<'a>(
     other_steam_ids: Vec<u64>,
     logger: &'a FilteringLogger<'a>,
 ) -> Result<HashSet<Game>, Error> {
-    logger
-        .trace("finding games missing from group...".to_string())
-        .await;
+    logger.trace("finding games missing from group...".to_string());
     let result = join!(
         client::get_owned_games(client::GetUserDetailsRequest { id: focus_steam_id }, logger),
         find_games_in_common(other_steam_ids, logger)
@@ -161,9 +159,7 @@ where
     let friends =
         client::get_user_friends_list(client::GetUserDetailsRequest { id: my_steamid }, logger)
             .await?;
-    logger
-        .trace(format!("got friends list: {:?}", friends))
-        .await;
+    logger.trace(format!("got friends list: {:?}", friends));
     let mut ids: Vec<u64> = friends
         .iter()
         .map(|friend| friend.steamid.parse::<u64>())
@@ -227,9 +223,7 @@ pub async fn find_friends_who_own_game<'a>(
     .await?;
 
     if !errors.is_empty() {
-        logger
-            .trace(format!("filtered out some results due to {:?}", errors))
-            .await;
+        logger.trace(format!("filtered out some results due to {:?}", errors));
     }
 
     Ok(user_summaries)

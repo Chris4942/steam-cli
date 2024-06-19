@@ -48,9 +48,7 @@ pub async fn get_owned_games<'a>(
             return Ok(response);
         }
         if response.status().as_u16() == 429 {
-            logger
-                .trace(format!("retyring for {} due to 429", request.id))
-                .await;
+            logger.trace(format!("retyring for {} due to 429", request.id));
             return Err(backoff::Error::Transient {
                 err: 429,
                 retry_after: None,
@@ -111,9 +109,7 @@ pub async fn get_user_friends_list<'a>(
     logger: &'a FilteringLogger<'a>,
 ) -> Result<Vec<Friend>, Error> {
     let user = request.id;
-    logger
-        .trace(format!("getting user friends for user: {user}"))
-        .await;
+    logger.trace(format!("getting user friends for user: {user}"));
 
     let params = [
         ("key", env::var("STEAM_API_KEY")?),
@@ -155,9 +151,7 @@ pub async fn get_user_summaries<'a>(
     logger: &'a FilteringLogger<'a>,
 ) -> Result<Vec<UserSummary>, Error> {
     let users = request.ids;
-    logger
-        .trace(format!("getting player summary for users: {:?}", users))
-        .await;
+    logger.trace(format!("getting player summary for users: {:?}", users));
 
     let params = [
         ("key", env::var("STEAM_API_KEY")?),
