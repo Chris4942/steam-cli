@@ -124,12 +124,22 @@ fn build_logger<'a>(ctx: &'a Context, msg: &'a Message) -> DiscordLogger<'a> {
     {
         thread::spawn(move || {
             let rt = get_blocking_runtime();
+            let mut errors_since_success = 0;
             loop {
-                let log = match rx.recv_timeout(Duration::from_secs(2)) {
+                let log = match rx.recv() {
                     Ok(log) => log,
                     Err(err) => {
-                        eprintln!("error received: {}\nassuming timeout. assuming done", err);
-                        return;
+                        errors_since_success += 1;
+                        eprintln!(
+                            "error received: {}\n\tErrors received since last success: {}",
+                            err, errors_since_success
+                        );
+                        if errors_since_success > 3 {
+                            eprintln!("error received: {}\nNot sure what's going on, so the thread looping thread is exiting", err);
+                            return;
+                        } else {
+                            continue;
+                        }
                     }
                 };
                 rt.block_on(send_message(log));
