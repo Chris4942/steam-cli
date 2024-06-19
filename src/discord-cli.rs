@@ -1,6 +1,9 @@
 use std::env::{self, VarError};
 use std::fmt::Display;
 use std::num::ParseIntError;
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::thread;
+use std::time::Duration;
 
 use serenity::all::Ready;
 use serenity::async_trait;
@@ -16,21 +19,31 @@ struct Handler;
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
+        let (tx, rx) = channel::<String>();
+        let logger = DiscordLogger {
+            ctx: &ctx,
+            msg: &msg,
+            tx,
+        };
         if msg.content.starts_with("steam-cli") {
-            handle_steam_cli_request(&ctx, &msg).await;
+            handle_steam_cli_request(&ctx, &msg, logger).await;
         }
     }
 
     async fn ready(&self, _ctx: Context, _ready: Ready) {}
 }
 
-async fn handle_steam_cli_request(ctx: &Context, msg: &Message) {
-    if let Err(err) = route_steam_cli_request(ctx, msg).await {
+async fn handle_steam_cli_request<'a>(ctx: &Context, msg: &Message, logger: DiscordLogger<'a>) {
+    if let Err(err) = route_steam_cli_request(ctx, msg, logger).await {
         eprintln!("{}", err);
     }
 }
 
-async fn route_steam_cli_request(ctx: &Context, msg: &Message) -> Result<(), Error> {
+async fn route_steam_cli_request<'a>(
+    _: &Context,
+    msg: &Message,
+    logger: DiscordLogger<'a>,
+) -> Result<(), Error> {
     let args = msg
         .content
         .split(' ')
@@ -42,7 +55,7 @@ async fn route_steam_cli_request(ctx: &Context, msg: &Message) -> Result<(), Err
     match steam::router::route_arguments(
         args.into_iter(),
         Some(env::var("USER_STEAM_ID")?.parse::<u64>()?),
-        &DiscordLogger { ctx, msg },
+        &logger,
     )
     .await
     {
@@ -108,6 +121,28 @@ impl From<router::Error> for Error {
     }
 }
 
+fn build_logger<'a>(ctx: &'a Context, msg: &'a Message) -> DiscordLogger<'a> {
+    let (tx, rx) = channel::<String>();
+    let logger = DiscordLogger {
+        ctx: &ctx,
+        msg: &msg,
+        tx,
+    };
+    thread::spawn(move || {
+        while true {
+            let log = match rx.recv_timeout(Duration::from_secs(2)) {
+                Ok(log) => log,
+                Err(err) => {
+                    eprintln!("error received: {}\nassuming timeout. assuming done", err);
+                    return;
+                }
+            };
+            send_message(ctx, msg, log);
+        }
+    });
+    return logger;
+}
+
 async fn send_message(ctx: &Context, msg: &Message, message: String) {
     if let Err(why) = msg
         .channel_id
@@ -121,15 +156,18 @@ async fn send_message(ctx: &Context, msg: &Message, message: String) {
 struct DiscordLogger<'a> {
     msg: &'a Message,
     ctx: &'a Context,
+    tx: Sender<String>,
 }
 
 #[async_trait]
 impl<'a> Logger for DiscordLogger<'a> {
-    async fn stdout(&self, str: String) {
-        send_message(self.ctx, self.msg, str).await
+    fn stdout(&self, str: String) -> Result<(), steam::logger::Error> {
+        self.tx.send(str)?;
+        Ok(())
     }
 
-    async fn stderr(&self, str: String) {
-        send_message(self.ctx, self.msg, str).await
+    fn stderr(&self, str: String) -> Result<(), steam::logger::Error> {
+        self.tx.send(str)?;
+        Ok(())
     }
 }

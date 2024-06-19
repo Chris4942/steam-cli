@@ -34,23 +34,14 @@ fn get_blocking_runtime() -> runtime::Runtime {
         .expect("tokio is borked")
 }
 
-async fn println_async(str: String) {
-    println!("{}", str);
-}
-
-async fn eprintln_async(str: String) {
-    eprintln!("{}", str);
-}
-
 struct StdLogger {}
 
-#[async_trait]
 impl steam::logger::Logger for StdLogger {
-    async fn stdout(&self, str: String) {
-        println_async(str).await
+    fn stdout(&self, str: String) -> Result<(), steam::logger::Error> {
+        Ok(println!("{}", str))
     }
 
-    async fn stderr(&self, str: String) {
-        eprintln_async(str).await
+    fn stderr(&self, str: String) -> Result<(), steam::logger::Error> {
+        Ok(eprintln!("{}", str))
     }
 }
