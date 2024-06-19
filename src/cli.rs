@@ -1,7 +1,6 @@
 mod steam;
 use std::env;
 
-use async_trait::async_trait;
 use steam::router;
 use tokio::runtime;
 
@@ -37,11 +36,11 @@ fn get_blocking_runtime() -> runtime::Runtime {
 struct StdLogger {}
 
 impl steam::logger::Logger for StdLogger {
-    fn stdout(&self, str: String) -> Result<(), steam::logger::Error> {
-        Ok(println!("{}", str))
+    fn stdout(&self, str: String) {
+        println!("{}", str)
     }
 
-    fn stderr(&self, str: String) -> Result<(), steam::logger::Error> {
-        Ok(eprintln!("{}", str))
+    fn stderr(&self, str: String) {
+        eprintln!("{}", str)
     }
 }

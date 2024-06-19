@@ -19,12 +19,7 @@ struct Handler;
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
-        let (tx, rx) = channel::<String>();
-        let logger = DiscordLogger {
-            ctx: &ctx,
-            msg: &msg,
-            tx,
-        };
+        let logger = build_logger(&ctx, &msg);
         if msg.content.starts_with("steam-cli") {
             handle_steam_cli_request(&ctx, &msg, logger).await;
         }
@@ -137,7 +132,7 @@ fn build_logger<'a>(ctx: &'a Context, msg: &'a Message) -> DiscordLogger<'a> {
                     return;
                 }
             };
-            send_message(ctx, msg, log);
+            send_message(&ctx, msg, log);
         }
     });
     return logger;
@@ -161,13 +156,15 @@ struct DiscordLogger<'a> {
 
 #[async_trait]
 impl<'a> Logger for DiscordLogger<'a> {
-    fn stdout(&self, str: String) -> Result<(), steam::logger::Error> {
-        self.tx.send(str)?;
-        Ok(())
+    fn stdout(&self, str: String) {
+        if let Err(err) = self.tx.send(str.clone()) {
+            eprintln!("Failed to send message {} to channel due to {}", str, err);
+        }
     }
 
-    fn stderr(&self, str: String) -> Result<(), steam::logger::Error> {
-        self.tx.send(str)?;
-        Ok(())
+    fn stderr(&self, str: String) {
+        if let Err(err) = self.tx.send(str.clone()) {
+            eprintln!("Failed to send message {} to channel due to {}", str, err);
+        }
     }
 }
