@@ -14,6 +14,8 @@ use steam::logger::Logger;
 use steam::router;
 mod util;
 use util::async_help::get_blocking_runtime;
+use util::string_parser;
+use util::string_parser::batch_string;
 
 struct Handler {
     tx: Sender<DiscordMessage>,
@@ -97,7 +99,9 @@ async fn main() {
                     }
                 }
             };
-            rt.block_on(send_message(log));
+            if let Err(err) = rt.block_on(send_message(log)) {
+                eprintln!("failed to send message due to {:?}", err);
+            }
         }
     });
 
@@ -149,17 +153,39 @@ impl From<router::Error> for Error {
     }
 }
 
-async fn send_message<'a>(discord_message: DiscordMessage) {
-    if let Err(why) = discord_message
-        .msg
-        .channel_id
-        .say(
-            &discord_message.ctx.http,
-            format!("```\n{message}\n```", message = discord_message.message),
-        )
-        .await
-    {
-        println!("Error sending message: {why:?}")
+async fn send_message<'a>(discord_message: DiscordMessage) -> Result<(), DiscordSendError> {
+    // NOTE: I don't know what the actual size limit is on discord messages. There webiste says
+    // 4000 chars; however, it doesn't end up working for me at that size, but 2000 - 8 generally
+    // seems to work. The 8 comes from the 4 markdown characters that are used for formatting
+    let batches = batch_string(&discord_message.message, 2000 - 8, '\n')?;
+    for batch in batches {
+        discord_message
+            .msg
+            .channel_id
+            .say(
+                &discord_message.ctx.http,
+                format!("```\n{message}\n```", message = batch),
+            )
+            .await?;
+    }
+    Ok(())
+}
+
+#[derive(Debug)]
+enum DiscordSendError {
+    Batch(string_parser::Error),
+    Send(serenity::Error),
+}
+
+impl From<string_parser::Error> for DiscordSendError {
+    fn from(value: string_parser::Error) -> Self {
+        DiscordSendError::Batch(value)
+    }
+}
+
+impl From<serenity::Error> for DiscordSendError {
+    fn from(value: serenity::Error) -> Self {
+        DiscordSendError::Send(value)
     }
 }
 
@@ -169,7 +195,6 @@ struct DiscordLogger<'a> {
     tx: Sender<DiscordMessage>,
 }
 
-#[async_trait]
 impl<'a> Logger for DiscordLogger<'a> {
     fn stdout(&self, str: String) {
         if let Err(err) = self.tx.send(self.create_discord_message(str.clone())) {
