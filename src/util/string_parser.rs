@@ -1,5 +1,6 @@
-use itertools::izip;
-
+// TODO: something weird is going on and the compiling the steam-cli bin doesn't actually sees this
+// function as unused wheras the discord-steam-cli sees that function as used and so we get
+// warnings when compiling one and not the other
 pub fn batch_string(input: &str, max_size: usize, separator: char) -> Result<Vec<&str>, Error> {
     let mut indexes_to_split_on: Vec<usize> = vec![];
     let mut current_index = 0;
@@ -34,26 +35,27 @@ pub enum Error {
     SeparatorNotFound,
 }
 
-macro_rules! batch_string_tests {
-    ($($name:ident: $value:expr,)*) => {
-    $(
-        #[test]
-        fn $name() {
-            let (input, expected) = $value;
-            let (input_string, max_size, separator) = input;
-            let output = batch_string(input_string, max_size, separator).unwrap();
-            assert_eq!(output.len(), expected.len(), "lengths were different. actual:\n{:?}\nexpected:\n{:?}", output, expected);
-            for (actual, expected) in izip!(output, expected) {
-                assert_eq!(actual, expected);
-            }
-        }
-    )*
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    macro_rules! batch_string_tests {
+        ($($name:ident: $value:expr,)*) => {
+            $(
+                #[test]
+                fn $name() {
+                    let (input, expected) = $value;
+                    let (input_string, max_size, separator) = input;
+                    let output = batch_string(input_string, max_size, separator).unwrap();
+                    assert_eq!(output.len(), expected.len(), "lengths were different. actual:\n{:?}\nexpected:\n{:?}", output, expected);
+                    for (actual, expected) in izip!(output, expected) {
+                        assert_eq!(actual, expected);
+                    }
+                }
+            )*
+        }
+    }
+
+    use super::batch_string;
+    use itertools::izip;
 
     batch_string_tests! {
         batch_string_0: (("something", 10, ' '), vec!["something"]),
