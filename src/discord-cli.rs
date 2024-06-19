@@ -3,7 +3,6 @@ use std::fmt::Display;
 use std::num::ParseIntError;
 use std::sync::mpsc::{channel, Sender};
 use std::thread;
-use std::time::Duration;
 
 use serenity::all::Ready;
 use serenity::async_trait;
@@ -16,12 +15,18 @@ use steam::router;
 mod util;
 use util::async_help::get_blocking_runtime;
 
-struct Handler;
+struct Handler {
+    tx: Sender<DiscordMessage>,
+}
 
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
-        let logger = build_logger(&ctx, &msg);
+        let logger = DiscordLogger {
+            ctx: &ctx,
+            msg: &msg,
+            tx: self.tx.clone(),
+        };
         if msg.content.starts_with("steam-cli") {
             handle_steam_cli_request(&ctx, &msg, logger).await;
         }
@@ -70,9 +75,36 @@ async fn main() {
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
 
+    let (tx, rx) = channel::<DiscordMessage>();
+    thread::spawn(move || {
+        eprintln!("logging thread started");
+        let rt = get_blocking_runtime();
+        let mut errors_since_success = 0;
+        loop {
+            eprintln!("awaiting message...");
+            let log = match rx.recv() {
+                Ok(log) => log,
+                Err(err) => {
+                    errors_since_success += 1;
+                    eprintln!(
+                        "error received: {}\n\tErrors received since last success: {}",
+                        err, errors_since_success
+                    );
+                    if errors_since_success > 3 {
+                        eprintln!("error received: {}\nNot sure what's going on, so the thread looping thread is exiting", err);
+                        return;
+                    } else {
+                        continue;
+                    }
+                }
+            };
+            rt.block_on(send_message(log));
+        }
+    });
+
     // Create a new instance of the Client, logging in as a bot.
     let mut client = Client::builder(&token, intents)
-        .event_handler(Handler)
+        .event_handler(Handler { tx })
         .await
         .expect("Err creating client");
 
@@ -116,37 +148,6 @@ impl From<router::Error> for Error {
     fn from(value: router::Error) -> Self {
         Error::Execution(value)
     }
-}
-
-fn build_logger<'a>(ctx: &'a Context, msg: &'a Message) -> DiscordLogger<'a> {
-    let (tx, rx) = channel::<DiscordMessage>();
-    let logger = DiscordLogger { ctx, msg, tx };
-    {
-        thread::spawn(move || {
-            let rt = get_blocking_runtime();
-            let mut errors_since_success = 0;
-            loop {
-                let log = match rx.recv() {
-                    Ok(log) => log,
-                    Err(err) => {
-                        errors_since_success += 1;
-                        eprintln!(
-                            "error received: {}\n\tErrors received since last success: {}",
-                            err, errors_since_success
-                        );
-                        if errors_since_success > 3 {
-                            eprintln!("error received: {}\nNot sure what's going on, so the thread looping thread is exiting", err);
-                            return;
-                        } else {
-                            continue;
-                        }
-                    }
-                };
-                rt.block_on(send_message(log));
-            }
-        });
-    }
-    logger
 }
 
 async fn send_message<'a>(discord_message: DiscordMessage) {
