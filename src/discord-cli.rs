@@ -1,7 +1,7 @@
 use std::env::{self, VarError};
 use std::fmt::Display;
 use std::num::ParseIntError;
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{channel, Sender};
 use std::thread;
 use std::time::Duration;
 
@@ -119,32 +119,34 @@ impl From<router::Error> for Error {
 }
 
 fn build_logger<'a>(ctx: &'a Context, msg: &'a Message) -> DiscordLogger<'a> {
-    let (tx, rx) = channel::<String>();
-    let logger = DiscordLogger {
-        ctx: &ctx,
-        msg: &msg,
-        tx,
-    };
-    thread::spawn(move || {
-        let rt = get_blocking_runtime();
-        while true {
-            let log = match rx.recv_timeout(Duration::from_secs(2)) {
-                Ok(log) => log,
-                Err(err) => {
-                    eprintln!("error received: {}\nassuming timeout. assuming done", err);
-                    return;
-                }
-            };
-            rt.block_on(send_message(&ctx, msg, log));
-        }
-    });
-    return logger;
+    let (tx, rx) = channel::<DiscordMessage>();
+    let logger = DiscordLogger { ctx, msg, tx };
+    {
+        thread::spawn(move || {
+            let rt = get_blocking_runtime();
+            loop {
+                let log = match rx.recv_timeout(Duration::from_secs(2)) {
+                    Ok(log) => log,
+                    Err(err) => {
+                        eprintln!("error received: {}\nassuming timeout. assuming done", err);
+                        return;
+                    }
+                };
+                rt.block_on(send_message(log));
+            }
+        });
+    }
+    logger
 }
 
-async fn send_message(ctx: &Context, msg: &Message, message: String) {
-    if let Err(why) = msg
+async fn send_message<'a>(discord_message: DiscordMessage) {
+    if let Err(why) = discord_message
+        .msg
         .channel_id
-        .say(&ctx.http, format!("```\n{message}\n```", message = message))
+        .say(
+            &discord_message.ctx.http,
+            format!("```\n{message}\n```", message = discord_message.message),
+        )
         .await
     {
         println!("Error sending message: {why:?}")
@@ -154,20 +156,37 @@ async fn send_message(ctx: &Context, msg: &Message, message: String) {
 struct DiscordLogger<'a> {
     msg: &'a Message,
     ctx: &'a Context,
-    tx: Sender<String>,
+    tx: Sender<DiscordMessage>,
 }
 
 #[async_trait]
 impl<'a> Logger for DiscordLogger<'a> {
     fn stdout(&self, str: String) {
-        if let Err(err) = self.tx.send(str.clone()) {
+        if let Err(err) = self.tx.send(self.create_discord_message(str.clone())) {
             eprintln!("Failed to send message {} to channel due to {}", str, err);
         }
     }
 
     fn stderr(&self, str: String) {
-        if let Err(err) = self.tx.send(str.clone()) {
+        if let Err(err) = self.tx.send(self.create_discord_message(str.clone())) {
             eprintln!("Failed to send message {} to channel due to {}", str, err);
         }
     }
+}
+
+impl<'a> DiscordLogger<'a> {
+    fn create_discord_message(&self, message: String) -> DiscordMessage {
+        // TODO: these clones might be unnecessary, but I'm not sure how to avoid them
+        DiscordMessage {
+            msg: self.msg.clone(),
+            ctx: self.ctx.clone(),
+            message,
+        }
+    }
+}
+
+struct DiscordMessage {
+    msg: Message,
+    ctx: Context,
+    message: String,
 }
