@@ -157,10 +157,10 @@ async fn send_message<'a>(discord_message: DiscordMessage) -> Result<(), Discord
     // NOTE: I don't know what the actual size limit is on discord messages. There webiste says
     // 4000 chars; however, it doesn't end up working for me at that size, but 2000 - 8 generally
     // seems to work. The 8 comes from the 4 markdown characters that are used for formatting
-    let batches = batch_string(&discord_message.message, 2000 - 8, '\n')?;
+    let batches = batch_string(&discord_message.message_to_send, 2000 - 8, '\n')?;
     for batch in batches {
         discord_message
-            .msg
+            .recieved_msg
             .channel_id
             .say(
                 &discord_message.ctx.http,
@@ -210,18 +210,18 @@ impl<'a> Logger for DiscordLogger<'a> {
 }
 
 impl<'a> DiscordLogger<'a> {
-    fn create_discord_message(&self, message: String) -> DiscordMessage {
+    fn create_discord_message(&self, message_to_send: String) -> DiscordMessage {
         // TODO: these clones might be unnecessary, but I'm not sure how to avoid them
         DiscordMessage {
-            msg: self.msg.clone(),
+            recieved_msg: self.msg.clone(),
             ctx: self.ctx.clone(),
-            message,
+            message_to_send,
         }
     }
 }
 
 struct DiscordMessage {
-    msg: Message,
+    recieved_msg: Message,
     ctx: Context,
-    message: String,
+    message_to_send: String,
 }
