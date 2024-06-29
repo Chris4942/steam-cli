@@ -124,9 +124,7 @@ async fn run_subcommand<'a>(
             Ok(serde_json::to_string_pretty(&friends_list)?)
         }
         Some(("friends-who-own-game", arguments)) => {
-            let gameid = arguments
-                .get_one::<u64>("gameid")
-                .ok_or(Error::Argument("gameid must be a valid u64".to_string()))?;
+            let gameid = get_gameid(arguments)?;
 
             let user_steam_id = user_steam_id.ok_or(Error::Argument(
                 "user_steam_id must be set to run this command".to_string(),
@@ -140,6 +138,13 @@ async fn run_subcommand<'a>(
                 serde_json::to_string_pretty(&friends_list)?,
                 friends_list.len()
             ))
+        }
+        Some(("get-game-info", arguments)) => {
+            let gameid = get_gameid(arguments)?;
+            let game_info = client::get_game_info(gameid, logger).await?;
+            println!("got game info without errors. Returning response");
+
+            Ok(format!("{:?}", game_info))
         }
         None => Err(Error::Argument("should be unreachable".to_string())),
         _ => unreachable!(),
@@ -228,4 +233,11 @@ async fn get_steam_ids<'a>(
         }
     };
     Ok(steam_ids)
+}
+
+fn get_gameid(arguments: &ArgMatches) -> Result<&u64, Error> {
+    let gameid = arguments
+        .get_one::<u64>("gameid")
+        .ok_or(Error::Argument("gameid must be a valid u64".to_string()))?;
+    return Ok(gameid);
 }

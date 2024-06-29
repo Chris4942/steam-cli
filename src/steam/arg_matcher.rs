@@ -33,6 +33,8 @@ pub async fn get_matches(args: vec::IntoIter<String>) -> Result<ArgMatches, Erro
         .num_args(1)
         .value_parser(value_parser!(u64));
 
+    let game_id_arg = Arg::new("gameid").value_parser(value_parser!(u64));
+
     let matches = command!()
         .version(env!("CARGO_PKG_VERSION"))
         .author("Chris West")
@@ -86,10 +88,12 @@ pub async fn get_matches(args: vec::IntoIter<String>) -> Result<ArgMatches, Erro
         )
         .subcommand(
             Command::new("friends-who-own-game")
-                .arg(
-                    Arg::new("gameid")
-                    .value_parser(value_parser!(u64))
-                )
+                .arg(game_id_arg.clone())
+                .arg_required_else_help(true)
+        )
+        .subcommand(
+            Command::new("get-game-info")
+                .arg(game_id_arg.clone())
                 .arg_required_else_help(true)
         )
         .try_get_matches_from(args)?;
