@@ -13,9 +13,7 @@ mod steam;
 use steam::logger::Logger;
 use steam::router;
 mod util;
-use util::async_help::get_blocking_runtime;
-use util::string_parser;
-use util::string_parser::batch_string;
+use util::{async_help::get_blocking_runtime, string_parser};
 
 struct Handler {
     tx: Sender<DiscordMessage>,
@@ -157,7 +155,7 @@ async fn send_message<'a>(discord_message: DiscordMessage) -> Result<(), Discord
     // NOTE: I don't know what the actual size limit is on discord messages. There webiste says
     // 4000 chars; however, it doesn't end up working for me at that size, but 2000 - 8 generally
     // seems to work. The 8 comes from the 4 markdown characters that are used for formatting
-    let batches = batch_string(&discord_message.message, 2000 - 8, '\n')?;
+    let batches = string_parser::batch_string(&discord_message.message, 2000 - 8, '\n')?;
     for batch in batches {
         discord_message
             .msg
