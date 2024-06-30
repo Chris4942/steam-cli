@@ -1,5 +1,5 @@
 use super::{
-    client::{self, GetUserSummariesRequest, UserSummary},
+    client::{self, GetUserSummariesRequest, PlayStyle, PlayStyleCategories, UserSummary},
     logger::FilteringLogger,
 };
 use futures::{future::join_all, join};
@@ -227,6 +227,47 @@ pub async fn find_friends_who_own_game<'a>(
     }
 
     Ok(user_summaries)
+}
+
+pub async fn filter_games<'a>(
+    games: HashSet<Game>,
+    included_categories: HashSet<u8>,
+    logger: &'a FilteringLogger<'a>,
+) -> Result<Vec<Game>, Error> {
+    // TODO: this would definitely get OOMs at scale, but for now this is fiiiiiiiiiiiiine
+    let game_infos = join_all(
+        games
+            .iter()
+            .map(|game| client::get_game_info(&game.appid, logger))
+            .collect::<Vec<_>>(),
+    )
+    .await;
+
+    let filtered_games = games
+        .iter()
+        .zip(game_infos.iter())
+        .filter(|(game, game_info)| match game_info.as_ref() {
+            Err(err) => {
+                logger.trace(format!(
+                    "ignoring game that failed to get game data for: {}: {:?}",
+                    game.appid, err
+                ));
+                false
+            }
+            Ok(game_info_response) => game_info_response.games[&(game.appid)]
+                .data
+                // TODO: this clone is totally a hack and should be removed
+                .clone()
+                .map_or(false, |data| {
+                    data.categories
+                        .iter()
+                        .any(|category| included_categories.contains(&(category.id)))
+                }),
+        })
+        .map(|(game, _)| game.to_owned())
+        .collect::<Vec<Game>>();
+
+    Ok(filtered_games)
 }
 
 #[derive(Debug)]

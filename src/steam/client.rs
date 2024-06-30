@@ -325,27 +325,27 @@ pub async fn get_game_info<'a>(
 
 #[derive(Debug)]
 pub struct GetGameInfoResponse {
-    games: HashMap<u64, GameInfo>,
+    pub games: HashMap<u64, GameInfo>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GameInfo {
-    data: GameData,
+    pub data: Option<GameData>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GameData {
     // TODO: Make this a set to improve performance
-    categories: Vec<PlayStyleCategories>,
+    pub categories: Vec<PlayStyleCategories>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-enum PlayStyle {
+pub enum PlayStyle {
     OnlineCoop = 38,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PlayStyleCategories {
-    description: String,
-    id: u8,
+    pub description: String,
+    pub id: u8,
 }

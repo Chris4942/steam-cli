@@ -65,9 +65,16 @@ async fn run_subcommand<'a>(
     match matches.subcommand() {
         Some(("games-in-common", arguments)) => {
             let steam_ids = get_steam_ids(arguments, user_steam_id, "steam_ids", logger).await?;
-            Ok(compute_sorted_games_string(
-                &service::find_games_in_common(steam_ids, logger).await?,
-            ))
+            let games_in_common = &service::find_games_in_common(steam_ids, logger).await?;
+            let filtered_games = if arguments.get_flag("filter") {
+                let filtered_games =
+                    &service::filter_games(games_in_common.to_owned(), HashSet::from([38]), logger)
+                        .await?;
+                &HashSet::from_iter(filtered_games.iter().cloned())
+            } else {
+                games_in_common
+            };
+            Ok(compute_sorted_games_string(filtered_games))
         }
         Some(("games-missing-from-group", arguments)) => {
             let focus_steam_id = get_steam_ids(arguments, user_steam_id, "focus_steam_id", logger)
