@@ -65,9 +65,19 @@ async fn run_subcommand<'a>(
     match matches.subcommand() {
         Some(("games-in-common", arguments)) => {
             let steam_ids = get_steam_ids(arguments, user_steam_id, "steam_ids", logger).await?;
-            Ok(compute_sorted_games_string(
-                &service::find_games_in_common(steam_ids, logger).await?,
-            ))
+            let games_in_common = &service::find_games_in_common(steam_ids, logger).await?;
+            let filtered_games = if arguments.get_flag("filter") {
+                let filtered_games = &service::filter_games(
+                    games_in_common.to_owned(),
+                    HashSet::from([27, 36, 38]),
+                    logger,
+                )
+                .await?;
+                &HashSet::from_iter(filtered_games.iter().cloned())
+            } else {
+                games_in_common
+            };
+            Ok(compute_sorted_games_string(filtered_games))
         }
         Some(("games-missing-from-group", arguments)) => {
             let focus_steam_id = get_steam_ids(arguments, user_steam_id, "focus_steam_id", logger)
@@ -124,9 +134,7 @@ async fn run_subcommand<'a>(
             Ok(serde_json::to_string_pretty(&friends_list)?)
         }
         Some(("friends-who-own-game", arguments)) => {
-            let gameid = arguments
-                .get_one::<u64>("gameid")
-                .ok_or(Error::Argument("gameid must be a valid u64".to_string()))?;
+            let gameid = get_gameid(arguments)?;
 
             let user_steam_id = user_steam_id.ok_or(Error::Argument(
                 "user_steam_id must be set to run this command".to_string(),
@@ -140,6 +148,13 @@ async fn run_subcommand<'a>(
                 serde_json::to_string_pretty(&friends_list)?,
                 friends_list.len()
             ))
+        }
+        Some(("get-game-info", arguments)) => {
+            let gameid = get_gameid(arguments)?;
+            let game_info = client::get_game_info(gameid, logger).await?;
+            println!("got game info without errors. Returning response");
+
+            Ok(format!("{:?}", game_info))
         }
         None => Err(Error::Argument("should be unreachable".to_string())),
         _ => unreachable!(),
@@ -228,4 +243,11 @@ async fn get_steam_ids<'a>(
         }
     };
     Ok(steam_ids)
+}
+
+fn get_gameid(arguments: &ArgMatches) -> Result<&u64, Error> {
+    let gameid = arguments
+        .get_one::<u64>("gameid")
+        .ok_or(Error::Argument("gameid must be a valid u64".to_string()))?;
+    return Ok(gameid);
 }

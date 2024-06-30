@@ -1,5 +1,6 @@
 use std::{
     borrow::Borrow,
+    collections::HashMap,
     env::{self, VarError},
     fmt::Display,
 };
@@ -7,7 +8,10 @@ use std::{
 use reqwest;
 use serde::{Deserialize, Serialize};
 
-use super::{logger::FilteringLogger, models::Game};
+use super::{
+    logger::{FilteringLogger, Logger},
+    models::Game,
+};
 use backoff::ExponentialBackoff;
 
 const BASE_URL: &str = "http://api.steampowered.com";
@@ -22,7 +26,9 @@ pub async fn get_owned_games<'a>(
     );
     let url_slice = &url[..];
 
-    let params = [
+    // TODO: change this to a fixed length array instead of a vector. That will probably require
+    // changing `retry_query` to a macro instead of a function
+    let params = vec![
         ("key", env::var("STEAM_API_KEY")?),
         ("steamId", request.id.to_string()),
         ("format", "json".to_string()),
@@ -33,30 +39,7 @@ pub async fn get_owned_games<'a>(
         ("inclde_extended_app_info", "false".to_string()),
     ];
 
-    let client = reqwest::Client::new();
-    let response = backoff::future::retry(ExponentialBackoff::default(), || async {
-        let response = match client.get(url_slice).query(&params).send().await {
-            Ok(res) => res,
-            Err(_) => {
-                return Err(backoff::Error::Transient {
-                    err: 0,
-                    retry_after: None,
-                })
-            }
-        };
-        if response.status().is_success() {
-            return Ok(response);
-        }
-        if response.status().as_u16() == 429 {
-            logger.trace(format!("retyring for {} due to 429", request.id));
-            return Err(backoff::Error::Transient {
-                err: 429,
-                retry_after: None,
-            });
-        }
-        Err(backoff::Error::Permanent(response.status().as_u16()))
-    })
-    .await?;
+    let response = retry_query(url_slice, params, format!("{}", request.id), logger).await?;
 
     if response.status().is_success() {
         let body = response.text().await?;
@@ -76,6 +59,39 @@ pub async fn get_owned_games<'a>(
         return Err(Error::JsonMissingValue);
     }
     Err(Error::HttpStatus(response.status().as_u16()))
+}
+
+async fn retry_query<'a>(
+    url_slice: &str,
+    params: Vec<(&str, String)>,
+    request_name: String,
+    logger: &'a FilteringLogger<'a>,
+) -> Result<reqwest::Response, Error> {
+    let client = reqwest::Client::new();
+    let response = backoff::future::retry(ExponentialBackoff::default(), || async {
+        let response = match client.get(url_slice).query(&params).send().await {
+            Ok(res) => res,
+            Err(_) => {
+                return Err(backoff::Error::Transient {
+                    err: 0,
+                    retry_after: None,
+                })
+            }
+        };
+        if response.status().is_success() {
+            return Ok(response);
+        }
+        if response.status().as_u16() == 429 {
+            logger.trace(format!("retyring for {} due to 429", request_name));
+            return Err(backoff::Error::Transient {
+                err: 429,
+                retry_after: None,
+            });
+        }
+        Err(backoff::Error::Permanent(response.status().as_u16()))
+    })
+    .await?;
+    return Ok(response);
 }
 
 pub async fn get_available_endpoints() -> Result<GetAvailableEndpointsResponse, Error> {
@@ -272,4 +288,62 @@ impl Display for Error {
             Error::MissingApiKey(err) => write!(f, "MissingApiKey({})", err),
         }
     }
+}
+
+pub async fn get_game_info<'a>(
+    gameid: &u64,
+    logger: &'a FilteringLogger<'a>,
+) -> Result<GetGameInfoResponse, Error> {
+    let url = "http://store.steampowered.com/api/appdetails/";
+    let params = vec![("appids", gameid.to_string())];
+    let response = retry_query(url, params, format!("appdetails for {}", gameid), logger).await?;
+
+    if response.status().is_success() {
+        let body = response.text().await?;
+        let parse_body: serde_json::Value = serde_json::from_str(&body)?;
+        if !parse_body.is_object() {
+            return Err(Error::JsonMissingValue);
+        }
+        return Ok(GetGameInfoResponse {
+            games: parse_body
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(key, value)| {
+                    (
+                        key.parse::<u64>().unwrap(),
+                        serde_json::from_value::<GameInfo>(value.to_owned()).unwrap(),
+                    )
+                })
+                .collect(),
+        });
+    }
+    Err(Error::HttpStatus(response.status().as_u16()))
+}
+
+#[derive(Debug)]
+pub struct GetGameInfoResponse {
+    pub games: HashMap<u64, GameInfo>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GameInfo {
+    pub data: Option<GameData>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GameData {
+    // TODO: Make this a set to improve performance
+    pub categories: Vec<PlayStyleCategories>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum PlayStyle {
+    OnlineCoop = 38,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PlayStyleCategories {
+    pub description: String,
+    pub id: u8,
 }

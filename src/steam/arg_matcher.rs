@@ -23,6 +23,11 @@ pub async fn get_matches(args: vec::IntoIter<String>) -> Result<ArgMatches, Erro
         .short('v')
         .action(clap::ArgAction::SetTrue);
 
+    let filter_flag = Arg::new("filter")
+        .long("filter")
+        .short('f')
+        .action(clap::ArgAction::SetTrue);
+
     let steam_ids_arg = Arg::new("steam_ids")
         .help("id(s) assoicated with steam account(s), e.g., for accounts 42 and 7: steam-cli gic 7 42")
         .num_args(1..)
@@ -32,6 +37,8 @@ pub async fn get_matches(args: vec::IntoIter<String>) -> Result<ArgMatches, Erro
         .help("id associated with the steam account")
         .num_args(1)
         .value_parser(value_parser!(u64));
+
+    let game_id_arg = Arg::new("gameid").value_parser(value_parser!(u64));
 
     let matches = command!()
         .version(env!("CARGO_PKG_VERSION"))
@@ -46,6 +53,7 @@ pub async fn get_matches(args: vec::IntoIter<String>) -> Result<ArgMatches, Erro
                 .arg(strict_matching_flag.clone())
                 .arg(use_ids_flag.clone())
                 .arg(steam_ids_arg.clone())
+                .arg(filter_flag.clone())
                 .arg_required_else_help(true),
         )
         .subcommand(
@@ -86,10 +94,12 @@ pub async fn get_matches(args: vec::IntoIter<String>) -> Result<ArgMatches, Erro
         )
         .subcommand(
             Command::new("friends-who-own-game")
-                .arg(
-                    Arg::new("gameid")
-                    .value_parser(value_parser!(u64))
-                )
+                .arg(game_id_arg.clone())
+                .arg_required_else_help(true)
+        )
+        .subcommand(
+            Command::new("get-game-info")
+                .arg(game_id_arg.clone())
                 .arg_required_else_help(true)
         )
         .try_get_matches_from(args)?;
