@@ -67,9 +67,12 @@ async fn run_subcommand<'a>(
             let steam_ids = get_steam_ids(arguments, user_steam_id, "steam_ids", logger).await?;
             let games_in_common = &service::find_games_in_common(steam_ids, logger).await?;
             let filtered_games = if arguments.get_flag("filter") {
-                let filtered_games =
-                    &service::filter_games(games_in_common.to_owned(), HashSet::from([38]), logger)
-                        .await?;
+                let filtered_games = &service::filter_games(
+                    games_in_common.to_owned(),
+                    HashSet::from([27, 36, 38]),
+                    logger,
+                )
+                .await?;
                 &HashSet::from_iter(filtered_games.iter().cloned())
             } else {
                 games_in_common

@@ -301,11 +301,9 @@ pub async fn get_game_info<'a>(
     if response.status().is_success() {
         let body = response.text().await?;
         let parse_body: serde_json::Value = serde_json::from_str(&body)?;
-        println!("parse_body:\n {}", parse_body);
         if !parse_body.is_object() {
             return Err(Error::JsonMissingValue);
         }
-        println!("no errors");
         return Ok(GetGameInfoResponse {
             games: parse_body
                 .as_object()

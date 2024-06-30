@@ -18,12 +18,11 @@ fn main() {
         Err(_) => None,
     };
     let rt = get_blocking_runtime();
-    rt.block_on(router::route_arguments(
+    let _ = rt.block_on(router::route_arguments(
         args.into_iter(),
         user_steam_id,
         &StdLogger {},
-    ))
-    .unwrap(); // If the command fails when running in cli, just blow up; it's fine
+    ));
 }
 
 struct StdLogger {}
