@@ -43,8 +43,8 @@ pub async fn run_command(
     run_subcommand(matches, user_id, &FilteringLogger { logger, verbose }).await
 }
 
-fn compute_sorted_games_string(games: &HashSet<Game>) -> String {
-    let mut games: Vec<&Game> = games.iter().collect();
+fn compute_sorted_games_string(games: impl IntoIterator<Item = Game>) -> String {
+    let mut games: Vec<Game> = games.into_iter().collect();
     games.sort_by(|a, b| a.name.cmp(&b.name));
     format!(
         "{games}\n\tTotal: {total}\n",
@@ -65,15 +65,15 @@ async fn run_subcommand<'a>(
     match matches.subcommand() {
         Some(("games-in-common", arguments)) => {
             let steam_ids = get_steam_ids(arguments, user_steam_id, "steam_ids", logger).await?;
-            let games_in_common = &service::find_games_in_common(steam_ids, logger).await?;
+            let games_in_common = service::find_games_in_common(steam_ids, logger).await?;
             let filtered_games = if arguments.get_flag("filter") {
-                let filtered_games = &service::filter_games(
+                let filtered_games = service::filter_games(
                     games_in_common.to_owned(),
                     HashSet::from([27, 36, 38]),
                     logger,
                 )
                 .await?;
-                &HashSet::from_iter(filtered_games.iter().cloned())
+                HashSet::from_iter(filtered_games.iter().cloned())
             } else {
                 games_in_common
             };
@@ -89,7 +89,7 @@ async fn run_subcommand<'a>(
                 get_steam_ids(arguments, user_steam_id, "steam_ids", logger).await?;
             let games =
                 service::games_missing_from_group(focus_steam_id, other_steam_ids, logger).await?;
-            Ok(compute_sorted_games_string(&games))
+            Ok(compute_sorted_games_string(games))
         }
         Some(("get-available-endpoints", _)) => {
             let available_endpoints = client::get_available_endpoints().await?;

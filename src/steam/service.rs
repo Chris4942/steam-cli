@@ -8,7 +8,7 @@ use std::{collections::HashSet, fmt::Display, num::ParseIntError};
 use super::models::Game;
 
 pub async fn find_games_in_common<'a>(
-    steam_ids: Vec<u64>,
+    steam_ids: impl IntoIterator<Item = u64>,
     logger: &'a FilteringLogger<'a>,
 ) -> Result<HashSet<Game>, Error> {
     let mut games_set = HashSet::<Game>::new();
@@ -38,7 +38,7 @@ pub async fn find_games_in_common<'a>(
 
 pub async fn games_missing_from_group<'a>(
     focus_steam_id: u64,
-    other_steam_ids: Vec<u64>,
+    other_steam_ids: impl IntoIterator<Item = u64>,
     logger: &'a FilteringLogger<'a>,
 ) -> Result<HashSet<Game>, Error> {
     logger.trace("finding games missing from group...".to_string());
@@ -55,7 +55,7 @@ pub async fn games_missing_from_group<'a>(
 }
 
 pub async fn resolve_usernames_strictly<'a>(
-    usernames: impl Iterator<Item = &str>,
+    usernames: impl IntoIterator<Item = &str>,
     my_steamid: u64,
     logger: &'a FilteringLogger<'a>,
 ) -> Result<Vec<u64>, Error> {
@@ -76,7 +76,7 @@ pub async fn resolve_usernames_strictly<'a>(
 }
 
 pub async fn resolve_usernames_fuzzily<'a>(
-    usernames: impl Iterator<Item = &str>,
+    usernames: impl IntoIterator<Item = &str>,
     my_steamid: u64,
     threshold: u32,
     logger: &'a FilteringLogger<'a>,
@@ -148,7 +148,7 @@ pub async fn resolve_usernames_fuzzily<'a>(
 }
 
 pub async fn resolve_username_with_mapping_function<'b, F>(
-    usernames: impl Iterator<Item = &str>,
+    usernames: impl IntoIterator<Item = &str>,
     my_steamid: u64,
     mapping_function: F,
     logger: &'b FilteringLogger<'b>,
@@ -168,6 +168,7 @@ where
     let user_summaries =
         client::get_user_summaries(client::GetUserSummariesRequest { ids }, logger).await?;
     let steamids: Vec<u64> = usernames
+        .into_iter()
         .map(|username| mapping_function(username, &user_summaries))
         .collect::<Result<Vec<_>, Error>>()?
         .iter()
@@ -230,10 +231,12 @@ pub async fn find_friends_who_own_game<'a>(
 }
 
 pub async fn filter_games<'a>(
-    games: HashSet<Game>,
+    games: impl IntoIterator<Item = Game>,
     included_categories: HashSet<u8>,
     logger: &'a FilteringLogger<'a>,
 ) -> Result<Vec<Game>, Error> {
+    let games = games.into_iter().collect::<Vec<_>>();
+
     // TODO: this would definitely get OOMs at scale, but for now this is fiiiiiiiiiiiiine
     let game_infos = join_all(
         games
