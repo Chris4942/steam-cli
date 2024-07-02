@@ -1,5 +1,5 @@
 use super::{
-    client::{self, GetUserSummariesRequest, PlayStyle, PlayStyleCategories, UserSummary},
+    client::{self, GetUserSummariesRequest, UserSummary},
     logger::FilteringLogger,
 };
 use futures::{future::join_all, join};

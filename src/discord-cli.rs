@@ -2,6 +2,7 @@ use std::env::{self, VarError};
 use std::fmt::Display;
 use std::num::ParseIntError;
 use std::sync::mpsc::{channel, Sender};
+use std::sync::Arc;
 use std::thread;
 
 use serenity::all::Ready;
@@ -22,12 +23,13 @@ struct Handler {
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
+        let msg = Arc::new(msg);
         let logger = DiscordLogger {
-            ctx: &ctx,
-            msg: &msg,
+            ctx: Arc::new(ctx),
+            msg: msg.clone(),
             tx: self.tx.clone(),
         };
-        if msg.content.starts_with("steam-cli") {
+        if msg.as_ref().content.starts_with("steam-cli") {
             handle_steam_cli_request(&msg, logger).await;
         }
     }
@@ -35,16 +37,13 @@ impl EventHandler for Handler {
     async fn ready(&self, _ctx: Context, _ready: Ready) {}
 }
 
-async fn handle_steam_cli_request<'a>(msg: &Message, logger: DiscordLogger<'a>) {
+async fn handle_steam_cli_request(msg: &Message, logger: DiscordLogger) {
     if let Err(err) = route_steam_cli_request(msg, logger).await {
         eprintln!("{}", err);
     }
 }
 
-async fn route_steam_cli_request<'a>(
-    msg: &Message,
-    logger: DiscordLogger<'a>,
-) -> Result<(), Error> {
+async fn route_steam_cli_request<'a>(msg: &Message, logger: DiscordLogger) -> Result<(), Error> {
     let args = msg
         .content
         .split(' ')
@@ -187,13 +186,19 @@ impl From<serenity::Error> for DiscordSendError {
     }
 }
 
-struct DiscordLogger<'a> {
-    msg: &'a Message,
-    ctx: &'a Context,
+///msg and ctx are Arcs (Async Reference Counted) so that they can be safely passed between threads
+///without deep copying
+///
+///https://doc.rust-lang.org/std/sync/struct.Arc.html
+struct DiscordLogger {
+    /// Arc so that it can be passed between threads
+    msg: Arc<Message>,
+    /// Arc so that it can be passed between threads
+    ctx: Arc<Context>,
     tx: Sender<DiscordMessage>,
 }
 
-impl<'a> Logger for DiscordLogger<'a> {
+impl Logger for DiscordLogger {
     fn stdout(&self, str: String) {
         if let Err(err) = self.tx.send(self.create_discord_message(str.clone())) {
             eprintln!("Failed to send message {} to channel due to {}", str, err);
@@ -207,10 +212,13 @@ impl<'a> Logger for DiscordLogger<'a> {
     }
 }
 
-impl<'a> DiscordLogger<'a> {
+impl DiscordLogger {
     fn create_discord_message(&self, message: String) -> DiscordMessage {
-        // TODO: these clones might be unnecessary, but I'm not sure how to avoid them
         DiscordMessage {
+            // NOTE: these calls to clone do not do a deep copy. Since these are Arcs, they just
+            // copy a pointer to the data instead and increment a counter. See the docs for more
+            // info
+            // https://doc.rust-lang.org/std/sync/struct.Arc.html
             msg: self.msg.clone(),
             ctx: self.ctx.clone(),
             message,
@@ -219,7 +227,7 @@ impl<'a> DiscordLogger<'a> {
 }
 
 struct DiscordMessage {
-    msg: Message,
-    ctx: Context,
+    msg: Arc<Message>,
+    ctx: Arc<Context>,
     message: String,
 }
