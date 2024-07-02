@@ -50,18 +50,13 @@ async fn route_steam_cli_request<'a>(msg: &Message, logger: DiscordLogger) -> Re
         .map(|s| s.to_owned())
         .collect::<Vec<_>>();
 
-    // TODO: I should definitely be able to replace this `match` clause with a `?`, so I
-    // should do that sometime
-    match steam::router::route_arguments(
+    steam::router::route_arguments(
         args.into_iter(),
         Some(env::var("USER_STEAM_ID")?.parse::<u64>()?),
         &logger,
     )
-    .await
-    {
-        Ok(()) => Ok(()),
-        Err(e) => Err(Error::Execution(e)),
-    }
+    .await?;
+    Ok(())
 }
 
 #[tokio::main]
