@@ -259,8 +259,7 @@ pub async fn filter_games<'a>(
             }
             Ok(game_info_response) => game_info_response.games[&(game.appid)]
                 .data
-                // TODO: this clone is totally a hack and should be removed
-                .clone()
+                .as_ref()
                 .map_or(false, |data| {
                     data.categories
                         .iter()
