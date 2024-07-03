@@ -9,10 +9,12 @@ pub struct FilteringLogger<'a> {
 }
 
 impl<'a> FilteringLogger<'a> {
+    #[allow(dead_code)]
     pub fn info(&self, str: String) {
         self.logger.stdout(str);
     }
 
+    #[allow(dead_code)]
     pub fn error(&self, str: String) {
         self.logger.stderr(str);
     }

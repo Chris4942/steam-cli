@@ -8,10 +8,7 @@ use std::{
 use reqwest;
 use serde::{Deserialize, Serialize};
 
-use super::{
-    logger::{FilteringLogger, Logger},
-    models::Game,
-};
+use super::{logger::FilteringLogger, models::Game};
 use backoff::ExponentialBackoff;
 
 const BASE_URL: &str = "http://api.steampowered.com";
