@@ -249,5 +249,5 @@ fn get_gameid(arguments: &ArgMatches) -> Result<&u64, Error> {
     let gameid = arguments
         .get_one::<u64>("gameid")
         .ok_or(Error::Argument("gameid must be a valid u64".to_string()))?;
-    return Ok(gameid);
+    Ok(gameid)
 }

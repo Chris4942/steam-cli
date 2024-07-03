@@ -88,7 +88,7 @@ async fn retry_query<'a>(
         Err(backoff::Error::Permanent(response.status().as_u16()))
     })
     .await?;
-    return Ok(response);
+    Ok(response)
 }
 
 pub async fn get_available_endpoints() -> Result<GetAvailableEndpointsResponse, Error> {
