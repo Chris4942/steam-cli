@@ -18,11 +18,7 @@ fn main() {
         Err(_) => None,
     };
     let rt = get_blocking_runtime();
-    let _ = rt.block_on(router::route_arguments(
-        args.into_iter(),
-        user_steam_id,
-        &StdLogger {},
-    ));
+    let _ = rt.block_on(router::route_arguments(args, user_steam_id, &StdLogger {}));
 }
 
 struct StdLogger {}

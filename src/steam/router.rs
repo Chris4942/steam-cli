@@ -1,6 +1,6 @@
 // TODO: the arg_matcher, router and games_router files should all be moved into their own
 // submodule
-use std::{collections::HashSet, fmt::Display, num::ParseIntError, vec};
+use std::{fmt::Display, num::ParseIntError};
 
 use clap::ArgMatches;
 
@@ -21,7 +21,7 @@ use super::{
 const FUZZY_THRESHOLD: u32 = 50;
 
 pub async fn route_arguments(
-    args: vec::IntoIter<String>,
+    args: impl IntoIterator<Item = String>,
     user_id: Option<u64>,
     logger: &dyn Logger,
 ) -> Result<(), Error> {
@@ -36,7 +36,7 @@ pub async fn route_arguments(
 }
 
 pub async fn run_command(
-    args: vec::IntoIter<String>,
+    args: impl IntoIterator<Item = String>,
     user_id: Option<u64>,
     logger: &dyn Logger,
 ) -> Result<String, Error> {

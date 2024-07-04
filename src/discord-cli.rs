@@ -51,7 +51,7 @@ async fn route_steam_cli_request<'a>(msg: &Message, logger: DiscordLogger) -> Re
         .collect::<Vec<_>>();
 
     steam::router::route_arguments(
-        args.into_iter(),
+        args,
         Some(env::var("USER_STEAM_ID")?.parse::<u64>()?),
         &logger,
     )

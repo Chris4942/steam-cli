@@ -1,9 +1,9 @@
 // TODO: the arg_matcher, router and games_router files should all be moved into their own
 // submodule
 use clap::{command, value_parser, Arg, ArgMatches, Command, Error as ClapError};
-use std::{fmt::Display, vec};
+use std::fmt::Display;
 
-pub async fn get_matches(args: vec::IntoIter<String>) -> Result<ArgMatches, Error> {
+pub async fn get_matches(args: impl IntoIterator<Item = String>) -> Result<ArgMatches, Error> {
     let self_flag = Arg::new("self")
         .help("if present, then the calling user will be included as a steam id. In the discord implemenation, then this currently is hard coded to my steam_id")
         .long("self")
