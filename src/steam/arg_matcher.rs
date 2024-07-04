@@ -55,7 +55,7 @@ pub fn get_matches(
                 .subcommand(
                     Command::new("in-common")
                         .about("find the intersection of games owned by provided steam accounts")
-                        .alias("gic")
+                        .alias("ic")
                         .arg(strict_matching_flag.clone())
                         .arg(use_ids_flag.clone())
                         .arg(steam_ids_arg.clone())
