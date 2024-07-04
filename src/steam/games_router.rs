@@ -40,10 +40,14 @@ pub async fn run_games_command<'a>(
     let filtered_games = match arguments.get_one::<String>("filter") {
         None => games,
         Some(filter) => {
-            let filter_numbers = HashSet::from(match filter.as_str() {
-                "multiplayer" => [27, 36, 38],
-                _ => panic!(),
-            });
+            let filter_numbers = HashSet::from_iter(
+                match filter.as_str() {
+                    "multiplayer" => [27, 36, 38].iter(),
+                    "controller" => [].iter(),
+                    _ => panic!(),
+                }
+                .cloned(),
+            );
             let filtered_games = filter_games(games.to_owned(), filter_numbers, logger).await?;
             HashSet::from_iter(filtered_games.iter().cloned())
         }

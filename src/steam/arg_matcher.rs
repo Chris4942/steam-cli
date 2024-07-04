@@ -1,7 +1,7 @@
 // TODO: the arg_matcher, router and games_router files should all be moved into their own
 // submodule
 use clap::{command, value_parser, Arg, ArgMatches, Command, Error as ClapError};
-use std::ffi::OsString;
+use std::{ffi::OsString, fmt::Display};
 
 pub fn get_matches(
     args: impl IntoIterator<Item = impl Into<OsString> + Clone>,
@@ -121,6 +121,16 @@ pub enum Error {
 impl From<ClapError> for Error {
     fn from(value: ClapError) -> Self {
         Error::Matcher(value)
+    }
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            // This is required for the clap errors so that the help menu prints out properly
+            Error::Matcher(str) => write!(f, "{str}"),
+            other => write!(f, "{:?}", other),
+        }
     }
 }
 

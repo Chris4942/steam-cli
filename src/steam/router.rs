@@ -175,7 +175,7 @@ impl Display for Error {
             Error::Argument(str) => write!(f, "ArgumentError: {}", str),
             Error::Parse(str) => write!(f, "ParseError: {}", str),
             Error::Execution(str) => write!(f, "ExecutionError: {}", str),
-            Error::CommandNotFound(str) => write!(f, "{:?}", str),
+            Error::CommandNotFound(str) => write!(f, "{}", str),
         }
     }
 }
