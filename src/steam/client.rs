@@ -13,6 +13,39 @@ use backoff::ExponentialBackoff;
 
 const BASE_URL: &str = "http://api.steampowered.com";
 
+// This is a macro instead of a function so that it can take a statically sized $params instead of
+// a dynamically typed vector
+// This must be called from an async context
+macro_rules! retry_query {
+    ($url_slice:expr, $params:expr, $request_name:expr, $logger:expr) => {{
+        let client = reqwest::Client::new();
+        let response = backoff::future::retry(ExponentialBackoff::default(), || async {
+            let response = match client.get($url_slice).query($params).send().await {
+                Ok(res) => res,
+                Err(_) => {
+                    return Err(backoff::Error::Transient {
+                        err: 0,
+                        retry_after: None,
+                    })
+                }
+            };
+            if response.status().is_success() {
+                return Ok(response);
+            }
+            if response.status().as_u16() == 429 {
+                $logger.trace(format!("retyring {} due to 429", $request_name));
+                return Err(backoff::Error::Transient {
+                    err: 429,
+                    retry_after: None,
+                });
+            }
+            Err(backoff::Error::Permanent(response.status().as_u16()))
+        })
+        .await?;
+        response
+    }};
+}
+
 pub async fn get_owned_games<'a>(
     request: GetUserDetailsRequest,
     logger: &'a FilteringLogger<'a>,
@@ -23,9 +56,7 @@ pub async fn get_owned_games<'a>(
     );
     let url_slice = &url[..];
 
-    // TODO: change this to a fixed length array instead of a vector. That will probably require
-    // changing `retry_query` to a macro instead of a function
-    let params = vec![
+    let params = [
         ("key", env::var("STEAM_API_KEY")?),
         ("steamId", request.id.to_string()),
         ("format", "json".to_string()),
@@ -36,7 +67,7 @@ pub async fn get_owned_games<'a>(
         ("inclde_extended_app_info", "false".to_string()),
     ];
 
-    let response = retry_query(url_slice, params, format!("{}", request.id), logger).await?;
+    let response = retry_query!(url_slice, &params, request.id.to_string(), logger);
 
     if response.status().is_success() {
         let body = response.text().await?;
@@ -56,39 +87,6 @@ pub async fn get_owned_games<'a>(
         return Err(Error::JsonMissingValue);
     }
     Err(Error::HttpStatus(response.status().as_u16()))
-}
-
-async fn retry_query<'a>(
-    url_slice: &str,
-    params: Vec<(&str, String)>,
-    request_name: String,
-    logger: &'a FilteringLogger<'a>,
-) -> Result<reqwest::Response, Error> {
-    let client = reqwest::Client::new();
-    let response = backoff::future::retry(ExponentialBackoff::default(), || async {
-        let response = match client.get(url_slice).query(&params).send().await {
-            Ok(res) => res,
-            Err(_) => {
-                return Err(backoff::Error::Transient {
-                    err: 0,
-                    retry_after: None,
-                })
-            }
-        };
-        if response.status().is_success() {
-            return Ok(response);
-        }
-        if response.status().as_u16() == 429 {
-            logger.trace(format!("retyring for {} due to 429", request_name));
-            return Err(backoff::Error::Transient {
-                err: 429,
-                retry_after: None,
-            });
-        }
-        Err(backoff::Error::Permanent(response.status().as_u16()))
-    })
-    .await?;
-    Ok(response)
 }
 
 pub async fn get_available_endpoints() -> Result<GetAvailableEndpointsResponse, Error> {
@@ -292,8 +290,8 @@ pub async fn get_game_info<'a>(
     logger: &'a FilteringLogger<'a>,
 ) -> Result<GetGameInfoResponse, Error> {
     let url = "http://store.steampowered.com/api/appdetails/";
-    let params = vec![("appids", gameid.to_string())];
-    let response = retry_query(url, params, format!("appdetails for {}", gameid), logger).await?;
+    let params = [("appids", gameid.to_string())];
+    let response = retry_query!(url, &params, format!("appdetails for {}", gameid), logger);
 
     if response.status().is_success() {
         let body = response.text().await?;
