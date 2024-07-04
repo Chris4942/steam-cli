@@ -40,7 +40,7 @@ pub async fn run_command(
     user_id: Option<u64>,
     logger: &dyn Logger,
 ) -> Result<String, Error> {
-    let matches = get_matches(args).await?;
+    let matches = get_matches(args)?;
     let verbose = matches.get_flag("verbose");
 
     run_subcommand(matches, user_id, &FilteringLogger { logger, verbose }).await
@@ -129,7 +129,6 @@ async fn run_subcommand<'a>(
         Some(("get-game-info", arguments)) => {
             let gameid = get_gameid(arguments)?;
             let game_info = client::get_game_info(gameid, logger).await?;
-            println!("got game info without errors. Returning response");
 
             Ok(format!("{:?}", game_info))
         }
@@ -176,7 +175,7 @@ impl Display for Error {
             Error::Argument(str) => write!(f, "ArgumentError: {}", str),
             Error::Parse(str) => write!(f, "ParseError: {}", str),
             Error::Execution(str) => write!(f, "ExecutionError: {}", str),
-            Error::CommandNotFound(str) => write!(f, "{}", str),
+            Error::CommandNotFound(str) => write!(f, "{:?}", str),
         }
     }
 }

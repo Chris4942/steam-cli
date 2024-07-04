@@ -37,13 +37,16 @@ pub async fn run_games_command<'a>(
             panic!("no subcommand matched")
         }
     };
-    let filtered_games = if arguments.get_flag("filter") {
-        let filtered_games =
-            filter_games(games.to_owned(), HashSet::from([27, 36, 38]), logger).await?;
-        HashSet::from_iter(filtered_games.iter().cloned())
-    } else {
-        games
+    let filtered_games = match arguments.get_one::<String>("filter") {
+        None => games,
+        Some(filter) => {
+            let filter_numbers = HashSet::from(match filter.as_str() {
+                "multiplayer" => [27, 36, 38],
+                _ => panic!(),
+            });
+            let filtered_games = filter_games(games.to_owned(), filter_numbers, logger).await?;
+            HashSet::from_iter(filtered_games.iter().cloned())
+        }
     };
-    println!("accessed filter");
     Ok(compute_sorted_games_string(filtered_games))
 }
