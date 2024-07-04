@@ -1,4 +1,6 @@
-use std::{collections::HashSet, fmt::Display, num::ParseIntError, vec};
+// TODO: the arg_matcher, router and games_router files should all be moved into their own
+// submodule
+use std::{fmt::Display, num::ParseIntError};
 
 use clap::ArgMatches;
 
@@ -11,6 +13,7 @@ use crate::steam::{
 use super::{
     arg_matcher::{self, get_matches},
     client,
+    games_router::run_games_command,
     logger::FilteringLogger,
     service,
 };
@@ -18,7 +21,7 @@ use super::{
 const FUZZY_THRESHOLD: u32 = 50;
 
 pub async fn route_arguments(
-    args: vec::IntoIter<String>,
+    args: impl IntoIterator<Item = String>,
     user_id: Option<u64>,
     logger: &dyn Logger,
 ) -> Result<(), Error> {
@@ -33,17 +36,18 @@ pub async fn route_arguments(
 }
 
 pub async fn run_command(
-    args: vec::IntoIter<String>,
+    args: impl IntoIterator<Item = String>,
     user_id: Option<u64>,
     logger: &dyn Logger,
 ) -> Result<String, Error> {
-    let matches = get_matches(args).await?;
+    let matches = get_matches(args)?;
     let verbose = matches.get_flag("verbose");
 
     run_subcommand(matches, user_id, &FilteringLogger { logger, verbose }).await
 }
 
-fn compute_sorted_games_string(games: impl IntoIterator<Item = Game>) -> String {
+// TODO: move into router utility class
+pub fn compute_sorted_games_string(games: impl IntoIterator<Item = Game>) -> String {
     let mut games: Vec<Game> = games.into_iter().collect();
     games.sort_by(|a, b| a.name.cmp(&b.name));
     format!(
@@ -63,34 +67,7 @@ async fn run_subcommand<'a>(
     logger: &'a FilteringLogger<'a>,
 ) -> Result<String, Error> {
     match matches.subcommand() {
-        Some(("games-in-common", arguments)) => {
-            let steam_ids = get_steam_ids(arguments, user_steam_id, "steam_ids", logger).await?;
-            let games_in_common = service::find_games_in_common(steam_ids, logger).await?;
-            let filtered_games = if arguments.get_flag("filter") {
-                let filtered_games = service::filter_games(
-                    games_in_common.to_owned(),
-                    HashSet::from([27, 36, 38]),
-                    logger,
-                )
-                .await?;
-                HashSet::from_iter(filtered_games.iter().cloned())
-            } else {
-                games_in_common
-            };
-            Ok(compute_sorted_games_string(filtered_games))
-        }
-        Some(("games-missing-from-group", arguments)) => {
-            let focus_steam_id = get_steam_ids(arguments, user_steam_id, "focus_steam_id", logger)
-                .await?
-                .first()
-                .ok_or(Error::Argument("could not find focus_steam_id".to_string()))?
-                .to_owned();
-            let other_steam_ids =
-                get_steam_ids(arguments, user_steam_id, "steam_ids", logger).await?;
-            let games =
-                service::games_missing_from_group(focus_steam_id, other_steam_ids, logger).await?;
-            Ok(compute_sorted_games_string(games))
-        }
+        Some(("games", arguments)) => run_games_command(arguments, user_steam_id, logger).await,
         Some(("get-available-endpoints", _)) => {
             let available_endpoints = client::get_available_endpoints().await?;
             let pretty_string = serde_json::to_string_pretty(&available_endpoints)?;
@@ -152,7 +129,6 @@ async fn run_subcommand<'a>(
         Some(("get-game-info", arguments)) => {
             let gameid = get_gameid(arguments)?;
             let game_info = client::get_game_info(gameid, logger).await?;
-            println!("got game info without errors. Returning response");
 
             Ok(format!("{:?}", game_info))
         }
@@ -210,7 +186,8 @@ impl From<ParseIntError> for Error {
     }
 }
 
-async fn get_steam_ids<'a>(
+// TODO: move into router utility class
+pub async fn get_steam_ids<'a>(
     arguments: &ArgMatches,
     user_steam_id: Option<u64>,
     steam_ids_key: &str,
