@@ -4,6 +4,8 @@ use std::collections::HashSet;
 // submodule
 use clap::ArgMatches;
 
+use crate::steam::service::games_missing_from_group;
+
 use super::{
     logger::FilteringLogger,
     router::{compute_sorted_games_string, get_steam_ids, Error},
@@ -19,6 +21,17 @@ pub async fn run_games_command<'a>(
         Some(("in-common", arguments)) => {
             let steam_ids = get_steam_ids(arguments, user_steam_id, "steam_ids", logger).await?;
             find_games_in_common(steam_ids, logger).await?
+        }
+        Some(("missing-from-group", arguments)) => {
+            let focus_steam_id = get_steam_ids(arguments, user_steam_id, "focus_steam_id", logger)
+                .await?
+                .first()
+                .ok_or(Error::Argument("could not find focus_steam_id".to_string()))?
+                .to_owned();
+            let other_steam_ids =
+                get_steam_ids(arguments, user_steam_id, "steam_ids", logger).await?;
+
+            games_missing_from_group(focus_steam_id, other_steam_ids, logger).await?
         }
         _ => {
             panic!("no subcommand matched")

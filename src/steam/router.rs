@@ -68,18 +68,6 @@ async fn run_subcommand<'a>(
 ) -> Result<String, Error> {
     match matches.subcommand() {
         Some(("games", arguments)) => run_games_command(arguments, user_steam_id, logger).await,
-        Some(("games-missing-from-group", arguments)) => {
-            let focus_steam_id = get_steam_ids(arguments, user_steam_id, "focus_steam_id", logger)
-                .await?
-                .first()
-                .ok_or(Error::Argument("could not find focus_steam_id".to_string()))?
-                .to_owned();
-            let other_steam_ids =
-                get_steam_ids(arguments, user_steam_id, "steam_ids", logger).await?;
-            let games =
-                service::games_missing_from_group(focus_steam_id, other_steam_ids, logger).await?;
-            Ok(compute_sorted_games_string(games))
-        }
         Some(("get-available-endpoints", _)) => {
             let available_endpoints = client::get_available_endpoints().await?;
             let pretty_string = serde_json::to_string_pretty(&available_endpoints)?;
