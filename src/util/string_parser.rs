@@ -1,6 +1,7 @@
-// TODO: something weird is going on and the compiling the steam-cli bin doesn't actually sees this
+// NOTE: something weird is going on and the compiling the steam-cli bin doesn't actually sees this
 // function as unused wheras the discord-steam-cli sees that function as used and so we get
 // warnings when compiling one and not the other
+#[allow(dead_code)]
 pub fn batch_string(input: &str, max_size: usize, separator: char) -> Result<Vec<&str>, Error> {
     let mut indexes_to_split_on: Vec<usize> = vec![];
     let mut current_index = 0;

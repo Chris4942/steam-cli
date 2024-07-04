@@ -166,6 +166,8 @@ async fn send_message<'a>(discord_message: DiscordMessage) -> Result<(), Discord
 #[derive(Debug)]
 enum DiscordSendError {
     Batch(string_parser::Error),
+    // NOTE: the value of Send(value) is never used directly, but it is used in logging
+    #[allow(dead_code)]
     Send(serenity::Error),
 }
 
