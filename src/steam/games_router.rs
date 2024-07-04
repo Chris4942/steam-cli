@@ -43,7 +43,7 @@ pub async fn run_games_command<'a>(
             let filter_numbers = HashSet::from_iter(
                 match filter.as_str() {
                     "multiplayer" => [27, 36, 38].iter(),
-                    "controller" => [].iter(),
+                    "controller" => [28].iter(),
                     _ => panic!(),
                 }
                 .cloned(),
