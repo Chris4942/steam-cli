@@ -1,3 +1,5 @@
+// TODO: the arg_matcher, router and games_router files should all be moved into their own
+// submodule
 use clap::{command, value_parser, Arg, ArgMatches, Command, Error as ClapError};
 use std::{fmt::Display, vec};
 
@@ -23,10 +25,12 @@ pub async fn get_matches(args: vec::IntoIter<String>) -> Result<ArgMatches, Erro
         .short('v')
         .action(clap::ArgAction::SetTrue);
 
+    println!("defining filter_flag");
     let filter_flag = Arg::new("filter")
         .long("filter")
         .short('f')
         .action(clap::ArgAction::SetTrue);
+    println!("defined filter_flag");
 
     let steam_ids_arg = Arg::new("steam_ids")
         .help("id(s) assoicated with steam account(s), e.g., for accounts 42 and 7: steam-cli gic 7 42")
@@ -47,14 +51,19 @@ pub async fn get_matches(args: vec::IntoIter<String>) -> Result<ArgMatches, Erro
         .arg_required_else_help(true)
         .arg(verbose_flag.clone())
         .subcommand(
-            Command::new("games-in-common")
-                .about("find the intersection of games owned by provided steam accounts")
-                .alias("gic")
-                .arg(strict_matching_flag.clone())
-                .arg(use_ids_flag.clone())
-                .arg(steam_ids_arg.clone())
+            Command::new("games")
+                .about("module for commands that return lists of games")
+                .alias("g")
                 .arg(filter_flag.clone())
-                .arg_required_else_help(true),
+                .arg_required_else_help(true)
+                .subcommand(
+                    Command::new("in-common")
+                        .about("find the intersection of games owned by provided steam accounts")
+                        .alias("gic")
+                        .arg(strict_matching_flag.clone())
+                        .arg(use_ids_flag.clone())
+                        .arg(steam_ids_arg.clone())
+                        .arg_required_else_help(true),)
         )
         .subcommand(
             Command::new("games-missing-from-group")
