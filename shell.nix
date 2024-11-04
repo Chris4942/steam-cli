@@ -5,5 +5,6 @@
     shellHook = ''
         alias g=git
         alias n="nvim ."
+        source .env
     '';
 }
