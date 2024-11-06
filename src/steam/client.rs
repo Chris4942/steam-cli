@@ -1,8 +1,9 @@
+use regex::Regex;
 use std::{
     borrow::Borrow,
     collections::HashMap,
     env::{self, VarError},
-    fmt::Display,
+    fmt,
 };
 
 use reqwest;
@@ -79,6 +80,7 @@ pub async fn get_owned_games<'a>(
         {
             return Ok(vec![]);
         }
+        println!("{}", parse_body["response"]["games"]);
         if let Some(games_array) = parse_body["response"]["games"].as_array() {
             return Ok(serde_json::from_value(serde_json::Value::Array(
                 games_array.to_owned(),
@@ -151,7 +153,7 @@ pub struct Friend {
     pub steamid: String,
 }
 
-impl Display for Friend {
+impl fmt::Display for Friend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "friend: {}", self.steamid)
     }
@@ -273,7 +275,7 @@ impl From<u16> for Error {
     }
 }
 
-impl Display for Error {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::Json(err) => write!(f, "JsonError({})", err),
@@ -295,6 +297,9 @@ pub async fn get_game_info<'a>(
 
     if response.status().is_success() {
         let body = response.text().await?;
+        println!("---");
+        println!("{}", body);
+        println!("---");
         let parse_body: serde_json::Value = serde_json::from_str(&body)?;
         if !parse_body.is_object() {
             return Err(Error::JsonMissingValue);
@@ -326,10 +331,17 @@ pub struct GameInfo {
     pub data: Option<GameData>,
 }
 
+impl fmt::Display for GameInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "GameInfo",)
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GameData {
     // TODO: Make this a set to improve performance
     pub categories: Vec<PlayStyleCategories>,
+    pub pc_requirements: Option<PcRequirements>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -341,4 +353,25 @@ pub enum PlayStyle {
 pub struct PlayStyleCategories {
     pub description: String,
     pub id: u8,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PcRequirements {
+    pub recommended: Option<String>,
+}
+
+impl PcRequirements {
+    pub fn recommended_gpu(&self) -> String {
+        if let Some(recommended) = &self.recommended {
+            println!("getting from {}", recommended);
+            let re = Regex::new(r"Graphics:\</strong\>?<gpu>\<strong").unwrap();
+            let ret = match re.captures(recommended.as_str()) {
+                None => "No GPU found".to_string(),
+                Some(cap) => cap["gpu"].to_string(),
+            };
+            println!("got {}", ret);
+            return ret;
+        }
+        return "No requirements".to_string();
+    }
 }

@@ -28,6 +28,11 @@ pub fn get_matches(
 
     let filter_flag = Arg::new("filter").long("filter").short('f').num_args(1);
 
+    let info_flag = Arg::new("info")
+        .long("info")
+        .short('i')
+        .action(clap::ArgAction::SetTrue);
+
     let steam_ids_arg = Arg::new("steam_ids")
         .help("id(s) assoicated with steam account(s), e.g., for accounts 42 and 7: steam-cli gic 7 42")
         .num_args(1..)
@@ -51,6 +56,7 @@ pub fn get_matches(
                 .about("module for commands that return lists of games")
                 .alias("g")
                 .arg(filter_flag.clone())
+                .arg(info_flag.clone())
                 .arg_required_else_help(true)
                 .subcommand(
                     Command::new("in-common")

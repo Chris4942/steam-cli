@@ -12,7 +12,7 @@ use crate::steam::{
 
 use super::{
     arg_matcher::{self, get_matches},
-    client,
+    client::{self, GameInfo, GetGameInfoResponse},
     games_router::run_games_command,
     logger::FilteringLogger,
     service,
@@ -55,6 +55,31 @@ pub fn compute_sorted_games_string(games: impl IntoIterator<Item = Game>) -> Str
         games = games
             .iter()
             .map(ToString::to_string)
+            .collect::<Vec<String>>()
+            .join("\n"),
+        total = games.len()
+    )
+}
+
+pub fn compute_game_info_string(games: impl IntoIterator<Item = GetGameInfoResponse>) -> String {
+    let games: Vec<GameInfo> = games
+        .into_iter()
+        .flat_map(|response| response.games.into_values())
+        .collect();
+    format!(
+        "{games}\n\tTotal: {total}\n",
+        games = games
+            .iter()
+            .map(|game_info| match &game_info.data {
+                None => "No info".to_string(),
+                Some(data) => match &data.pc_requirements {
+                    None => "No requirements".to_string(),
+                    Some(req) => match &req.recommended {
+                        None => "No recommendations".to_string(),
+                        Some(req) => req.clone(),
+                    },
+                },
+            })
             .collect::<Vec<String>>()
             .join("\n"),
         total = games.len()
@@ -129,7 +154,6 @@ async fn run_subcommand<'a>(
         Some(("get-game-info", arguments)) => {
             let gameid = get_gameid(arguments)?;
             let game_info = client::get_game_info(gameid, logger).await?;
-
             Ok(format!("{:?}", game_info))
         }
         None => Err(Error::Argument("should be unreachable".to_string())),

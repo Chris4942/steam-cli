@@ -3,12 +3,14 @@ use std::collections::HashSet;
 // TODO: the arg_matcher, router and games_router files should all be moved into their own
 // submodule
 use clap::ArgMatches;
+use futures::future::join_all;
 
 use crate::steam::service::games_missing_from_group;
 
 use super::{
+    client,
     logger::FilteringLogger,
-    router::{compute_sorted_games_string, get_steam_ids, Error},
+    router::{compute_game_info_string, compute_sorted_games_string, get_steam_ids, Error},
     service::{filter_games, find_games_in_common},
 };
 
@@ -52,5 +54,22 @@ pub async fn run_games_command<'a>(
             HashSet::from_iter(filtered_games.iter().cloned())
         }
     };
-    Ok(compute_sorted_games_string(filtered_games))
+    if !arguments.get_flag("info") {
+        logger.info("going down not info path".to_string());
+        Ok(compute_sorted_games_string(filtered_games))
+    } else {
+        logger.info("going down info path".to_string());
+        // TODO: this get_game_info call should be able to take all of them at once
+        let game_infos: Vec<Result<client::GetGameInfoResponse, client::Error>> = join_all(
+            filtered_games
+                .iter()
+                .map(|game| client::get_game_info(&game.appid, logger)),
+        )
+        .await
+        .into_iter()
+        .collect::<Vec<_>>();
+        let game_infos: Result<Vec<client::GetGameInfoResponse>, client::Error> =
+            game_infos.into_iter().collect();
+        Ok(compute_game_info_string(game_infos?))
+    }
 }
