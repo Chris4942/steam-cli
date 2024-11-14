@@ -1,4 +1,4 @@
-use regex::Regex;
+
 use std::{
     borrow::Borrow,
     collections::HashMap,
@@ -80,7 +80,6 @@ pub async fn get_owned_games<'a>(
         {
             return Ok(vec![]);
         }
-        println!("{}", parse_body["response"]["games"]);
         if let Some(games_array) = parse_body["response"]["games"].as_array() {
             return Ok(serde_json::from_value(serde_json::Value::Array(
                 games_array.to_owned(),
@@ -297,9 +296,6 @@ pub async fn get_game_info<'a>(
 
     if response.status().is_success() {
         let body = response.text().await?;
-        println!("---");
-        println!("{}", body);
-        println!("---");
         let parse_body: serde_json::Value = serde_json::from_str(&body)?;
         if !parse_body.is_object() {
             return Err(Error::JsonMissingValue);
@@ -358,20 +354,4 @@ pub struct PlayStyleCategories {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PcRequirements {
     pub recommended: Option<String>,
-}
-
-impl PcRequirements {
-    pub fn recommended_gpu(&self) -> String {
-        if let Some(recommended) = &self.recommended {
-            println!("getting from {}", recommended);
-            let re = Regex::new(r"Graphics:\</strong\>?<gpu>\<strong").unwrap();
-            let ret = match re.captures(recommended.as_str()) {
-                None => "No GPU found".to_string(),
-                Some(cap) => cap["gpu"].to_string(),
-            };
-            println!("got {}", ret);
-            return ret;
-        }
-        return "No requirements".to_string();
-    }
 }

@@ -55,10 +55,8 @@ pub async fn run_games_command<'a>(
         }
     };
     if !arguments.get_flag("info") {
-        logger.info("going down not info path".to_string());
         Ok(compute_sorted_games_string(filtered_games))
     } else {
-        logger.info("going down info path".to_string());
         // TODO: this get_game_info call should be able to take all of them at once
         let game_infos: Vec<Result<client::GetGameInfoResponse, client::Error>> = join_all(
             filtered_games
