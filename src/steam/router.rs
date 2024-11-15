@@ -72,13 +72,19 @@ pub fn compute_game_info_string(games: impl IntoIterator<Item = GetGameInfoRespo
             .iter()
             .map(|game_info| match &game_info.data {
                 None => "No info".to_string(),
-                Some(data) => match &data.pc_requirements {
-                    None => "No requirements".to_string(),
-                    Some(req) => match &req.recommended {
-                        None => "No recommendations".to_string(),
-                        Some(req) => req.clone(),
-                    },
-                },
+                Some(data) => format!(
+                    "{name},{id},{requirements}",
+                    name = data.name,
+                    id = data.steam_appid,
+                    requirements = match &data.pc_requirements {
+                        None => "No requirements".to_string(),
+                        Some(req) => match &req.recommended {
+                            None => "No recommendations".to_string(),
+                            Some(req) => req.clone(),
+                        },
+                    }
+                )
+                .to_string(),
             })
             .collect::<Vec<String>>()
             .join("\n"),

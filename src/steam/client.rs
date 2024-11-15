@@ -1,4 +1,3 @@
-
 use std::{
     borrow::Borrow,
     collections::HashMap,
@@ -338,6 +337,8 @@ pub struct GameData {
     // TODO: Make this a set to improve performance
     pub categories: Vec<PlayStyleCategories>,
     pub pc_requirements: Option<PcRequirements>,
+    pub name: String,
+    pub steam_appid: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
