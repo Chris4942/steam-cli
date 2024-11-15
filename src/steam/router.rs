@@ -46,52 +46,6 @@ pub async fn run_command(
     run_subcommand(matches, user_id, &FilteringLogger { logger, verbose }).await
 }
 
-// TODO: move into router utility class
-pub fn compute_sorted_games_string(games: impl IntoIterator<Item = Game>) -> String {
-    let mut games: Vec<Game> = games.into_iter().collect();
-    games.sort_by(|a, b| a.name.cmp(&b.name));
-    format!(
-        "{games}\n\tTotal: {total}\n",
-        games = games
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<String>>()
-            .join("\n"),
-        total = games.len()
-    )
-}
-
-pub fn compute_game_info_string(games: impl IntoIterator<Item = GetGameInfoResponse>) -> String {
-    let games: Vec<GameInfo> = games
-        .into_iter()
-        .flat_map(|response| response.games.into_values())
-        .collect();
-    format!(
-        "{games}\n\tTotal: {total}\n",
-        games = games
-            .iter()
-            .map(|game_info| match &game_info.data {
-                None => "No info".to_string(),
-                Some(data) => format!(
-                    "{name},{id},{requirements}",
-                    name = data.name,
-                    id = data.steam_appid,
-                    requirements = match &data.pc_requirements {
-                        None => "No requirements".to_string(),
-                        Some(req) => match &req.recommended {
-                            None => "No recommendations".to_string(),
-                            Some(req) => req.clone(),
-                        },
-                    }
-                )
-                .to_string(),
-            })
-            .collect::<Vec<String>>()
-            .join("\n"),
-        total = games.len()
-    )
-}
-
 async fn run_subcommand<'a>(
     matches: ArgMatches,
     user_steam_id: Option<u64>,
