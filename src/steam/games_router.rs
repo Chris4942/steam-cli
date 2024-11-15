@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use clap::ArgMatches;
 use futures::future::join_all;
 
-use crate::steam::{client::GameInfo, service::games_missing_from_group};
+use crate::steam::{client::GameInfo, models::Game, service::games_missing_from_group};
 
 use super::{
     client::{self, GetGameInfoResponse},
