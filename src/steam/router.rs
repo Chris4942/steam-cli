@@ -12,7 +12,7 @@ use crate::steam::{
 
 use super::{
     arg_matcher::{self, get_matches},
-    client,
+    client::{self, GameInfo, GetGameInfoResponse},
     games_router::run_games_command,
     logger::FilteringLogger,
     service,
@@ -44,21 +44,6 @@ pub async fn run_command(
     let verbose = matches.get_flag("verbose");
 
     run_subcommand(matches, user_id, &FilteringLogger { logger, verbose }).await
-}
-
-// TODO: move into router utility class
-pub fn compute_sorted_games_string(games: impl IntoIterator<Item = Game>) -> String {
-    let mut games: Vec<Game> = games.into_iter().collect();
-    games.sort_by(|a, b| a.name.cmp(&b.name));
-    format!(
-        "{games}\n\tTotal: {total}\n",
-        games = games
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<String>>()
-            .join("\n"),
-        total = games.len()
-    )
 }
 
 async fn run_subcommand<'a>(
@@ -129,7 +114,6 @@ async fn run_subcommand<'a>(
         Some(("get-game-info", arguments)) => {
             let gameid = get_gameid(arguments)?;
             let game_info = client::get_game_info(gameid, logger).await?;
-
             Ok(format!("{:?}", game_info))
         }
         None => Err(Error::Argument("should be unreachable".to_string())),
