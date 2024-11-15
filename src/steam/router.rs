@@ -4,17 +4,11 @@ use std::{fmt::Display, num::ParseIntError};
 
 use clap::ArgMatches;
 
-use crate::steam::{
-    client::{GetUserDetailsRequest, GetUserSummariesRequest},
-    logger::Logger,
-    models::Game,
-};
-
 use super::{
     arg_matcher::{self, get_matches},
-    client::{self, GameInfo, GetGameInfoResponse},
+    client::{self, GetUserDetailsRequest, GetUserSummariesRequest},
     games_router::run_games_command,
-    logger::FilteringLogger,
+    logger::{FilteringLogger, Logger},
     service,
 };
 
