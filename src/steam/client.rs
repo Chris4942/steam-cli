@@ -89,6 +89,7 @@ pub async fn get_owned_games<'a>(
     Err(Error::HttpStatus(response.status().as_u16()))
 }
 
+/// Fetch all available endpoints on the ISteamWebAPIUtil endpoints
 pub async fn get_available_endpoints() -> Result<GetAvailableEndpointsResponse, Error> {
     let params = [("key", env::var("STEAM_API_KEY")?)];
 
